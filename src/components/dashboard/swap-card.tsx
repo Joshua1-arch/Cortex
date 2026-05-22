@@ -16,6 +16,8 @@ const SUPPORTED_CHAIN_IDS = new Set([1952, 11155111] as const);
 
 const SWAP_ROUTER_ABI = parseAbi([
   "function swapNativeForExactTokens(uint256 amountOut) external payable",
+  "function getNativeToTokenQuote(uint256 amountIn) external pure returns (uint256)",
+  "function getTokenToNativeQuote(uint256 amountIn) external pure returns (uint256)",
 ]);
 
 const APPROVE_ABI = parseAbi([
@@ -142,13 +144,31 @@ export function SwapCard() {
   const displayedStatusMessage = derivedStatus?.message ?? statusMessage;
   const displayedStatusTone = derivedStatus?.tone ?? statusTone;
 
+  const parsedAmountIn = useMemo(() => {
+    try {
+      return amountIn.trim().length > 0 ? parseEther(amountIn) : BigInt(0);
+    } catch {
+      return undefined;
+    }
+  }, [amountIn]);
+
   const amountOutPreview = useMemo(() => {
-    if (amountIn.trim().length === 0) {
+    if (amountIn.trim().length === 0 || parsedAmountIn === undefined) {
       return "0.0000";
     }
 
-    return amountIn;
-  }, [amountIn]);
+    if (!isReverse) {
+      return Number(formatEther(parsedAmountIn * BigInt(100000))).toLocaleString(undefined, {
+        minimumFractionDigits: 4,
+        maximumFractionDigits: 4,
+      });
+    }
+
+    return Number(formatEther(parsedAmountIn / BigInt(100000))).toLocaleString(undefined, {
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6,
+    });
+  }, [isReverse, parsedAmountIn, amountIn]);
 
   const statusClassName = useMemo(() => {
     if (displayedStatusTone === "success") {
@@ -163,13 +183,6 @@ export function SwapCard() {
   }, [displayedStatusTone]);
 
   const isPending = isReceiptPending;
-  const parsedAmountIn = useMemo(() => {
-    try {
-      return amountIn.trim().length > 0 ? parseEther(amountIn) : BigInt(0);
-    } catch {
-      return undefined;
-    }
-  }, [amountIn]);
   const hasInsufficientNativeBalance =
     parsedAmountIn !== undefined
     && nativeBalance?.value !== undefined
@@ -209,11 +222,12 @@ export function SwapCard() {
       setStatusTone("idle");
 
       if (!isReverse) {
+        const quotedAmountOut = parsedAmount * BigInt(100000);
         const hash = await writeContractAsync({
           address: swapRouterAddress as `0x${string}`,
           abi: SWAP_ROUTER_ABI,
           functionName: "swapNativeForExactTokens",
-          args: [parsedAmount],
+          args: [quotedAmountOut],
           value: parsedAmount,
         });
 
@@ -254,18 +268,21 @@ export function SwapCard() {
   return (
     <section className="rounded-[34px] border border-[#1f2c20] bg-[linear-gradient(180deg,#161918_0%,#101211_100%)] px-5 py-5 text-[#eef2eb] shadow-[0_18px_60px_rgba(0,0,0,0.45)] sm:px-7 sm:py-7">
       <div className="mb-7 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold tracking-[-0.04em] text-[#f3f6f0] sm:text-[30px]">
-          Swap Tokens
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold tracking-[-0.04em] text-[#f3f6f0] sm:text-[30px]">
+            Cortex Swap Router
+          </h2>
+        </div>
         <button
           type="button"
           onClick={() => {
             void refetchNativeBalance();
             void refetchQuoteTokenBalance();
           }}
-          className="rounded-2xl border border-[#243126] bg-[#111713] p-3 text-[#d8ddd5] transition hover:text-white"
+          className="inline-flex items-center gap-2 rounded-2xl border border-[#243126] bg-[#111713] px-4 py-3 text-sm font-semibold text-[#d8ddd5] transition hover:border-[#315237] hover:text-white"
         >
           <RefreshIcon />
+          Refresh
         </button>
       </div>
 
@@ -274,15 +291,15 @@ export function SwapCard() {
           <div className="inline-flex rounded-[22px] border border-[#1d281f] bg-[#152016] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
             <button
               type="button"
-              className="rounded-[16px] bg-[#283728] px-8 py-3 text-sm font-semibold text-white"
+              className="rounded-[16px] bg-[#283728] px-8 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition hover:brightness-110"
             >
-              TOKENS
+              COR Markets
             </button>
             <button
               type="button"
-              className="rounded-[16px] px-8 py-3 text-sm font-semibold text-[#9ca59a]"
+              className="rounded-[16px] px-8 py-3 text-sm font-semibold text-[#9ca59a] transition hover:text-white"
             >
-              NFTs
+              NFT Vaults
             </button>
           </div>
         </div>
@@ -290,8 +307,8 @@ export function SwapCard() {
         <TokenCard
           label={isReverse ? "You Pay" : "You Pay"}
           amount={amountIn}
-          balance={`Balance: ${formatBalance(isReverse ? quoteTokenBalance?.value : nativeBalance?.value)} ${isReverse ? "xUSDT" : "OKB"}`}
-          token={isReverse ? "xUSDT" : "OKB"}
+          balance={`Balance: ${formatBalance(isReverse ? quoteTokenBalance?.value : nativeBalance?.value)} ${isReverse ? "COR" : "OKB"}`}
+          token={isReverse ? "COR" : "OKB"}
           tone="light"
           editable
           onAmountChange={handleAmountChange}
@@ -302,7 +319,7 @@ export function SwapCard() {
           <button
             type="button"
             onClick={() => setIsReverse((current) => !current)}
-            className="absolute -top-4 z-10 flex size-14 items-center justify-center rounded-[20px] border border-[#213124] bg-[#182119] text-[#5ff698] shadow-[0_10px_30px_rgba(0,0,0,0.35)]"
+            className="absolute -top-4 z-10 flex size-14 items-center justify-center rounded-[20px] border border-[#213124] bg-[#182119] text-[#5ff698] shadow-[0_10px_30px_rgba(0,0,0,0.35)] transition hover:scale-105 hover:border-[#2a4a30] hover:bg-[#1d281d]"
           >
             <SwapArrowsIcon />
           </button>
@@ -311,8 +328,8 @@ export function SwapCard() {
         <TokenCard
           label="You Receive"
           amount={amountOutPreview}
-          balance={`Balance: ${formatBalance(isReverse ? nativeBalance?.value : quoteTokenBalance?.value)} ${isReverse ? "OKB" : "xUSDT"}`}
-          token={isReverse ? "OKB" : "xUSDT"}
+          balance={`Balance: ${formatBalance(isReverse ? nativeBalance?.value : quoteTokenBalance?.value)} ${isReverse ? "OKB" : "COR"}`}
+          token={isReverse ? "OKB" : "COR"}
           tone="dark"
           isLoading={isReverse ? isFetchingNativeBalance : isFetchingQuoteTokenBalance}
           readOnly
@@ -324,7 +341,7 @@ export function SwapCard() {
             <div>
               <div className="text-sm font-semibold text-[#e7ece5]">Router</div>
               <div className="text-sm text-[#9ca59a]">
-                1:1 demo vault swap between native OKB and xUSDT
+                 swap at 1 OKB = 100,000 COR
               </div>
             </div>
           </div>
@@ -345,7 +362,10 @@ export function SwapCard() {
               Confirming...
             </>
           ) : (
-            "Confirm Swap"
+            <>
+              <Loader2 className="size-5 opacity-0" />
+              Confirm Swap
+            </>
           )}
         </button>
 
@@ -442,6 +462,15 @@ function RefreshIcon() {
     >
       <path d="M20 11a8 8 0 1 0 2.3 5.7" />
       <path d="M20 4v7h-7" />
+      <animateTransform
+        attributeName="transform"
+        attributeType="XML"
+        type="rotate"
+        from="0 12 12"
+        to="360 12 12"
+        dur="1.3s"
+        repeatCount="indefinite"
+      />
     </svg>
   );
 }

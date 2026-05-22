@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Web3Provider } from "@/components/providers";
+import { ToastProvider } from "@/components/ui/toast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,7 +31,9 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body suppressHydrationWarning className="min-h-full flex flex-col">
-        <Web3Provider>{children}</Web3Provider>
+        <Web3Provider>
+          <ToastProvider>{children}</ToastProvider>
+        </Web3Provider>
       </body>
     </html>
   );

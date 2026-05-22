@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins, Droplets, Loader2 } from "lucide-react";
+import { ArrowUpRight, Coins, Droplets } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { BaseError, formatEther, parseAbi, type Hex } from "viem";
 import {
@@ -10,6 +10,8 @@ import {
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toast";
 import { getContractsForChain, hasConfiguredAddress } from "@/lib/contracts";
 
 const SUPPORTED_CHAIN_IDS = new Set([1952, 11155111] as const);
@@ -54,6 +56,7 @@ export function FaucetCard() {
   const [submittedHash, setSubmittedHash] = useState<Hex | undefined>();
   const { address, chainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
+  const { showToast } = useToast();
 
   const isSupportedChain = chainId !== undefined && SUPPORTED_CHAIN_IDS.has(chainId as 1952 | 11155111);
   const activeChainId = isSupportedChain ? chainId : 1952;
@@ -137,7 +140,7 @@ export function FaucetCard() {
 
     if (isReceiptSuccess) {
       return {
-        message: "1,000 xUSDT claimed successfully.",
+        message: "1,000 COR claimed successfully.",
         tone: "success" as const,
       };
     }
@@ -173,6 +176,17 @@ export function FaucetCard() {
     || !isFaucetConfigured
     || isOnCooldown
     || isReceiptPending;
+
+  const isClaimLoading = isReceiptPending;
+
+  function handleOpenOkbFaucet() {
+    if (!address) {
+      showToast("Connect wallet first before opening the official OKB faucet.", "error");
+      return;
+    }
+
+    window.open("https://web3.okx.com/xlayer/faucet/xlayerfaucet", "_blank", "noopener,noreferrer");
+  }
 
   async function handleClaim() {
     if (!address) {
@@ -227,7 +241,7 @@ export function FaucetCard() {
           </div>
           <div>
             <h2 className="text-xl font-semibold tracking-[-0.04em] text-[#f3f6f0] sm:text-[28px]">
-              xUSDT Faucet
+              COR Faucet
             </h2>
             <p className="mt-1 text-sm text-[#a8b1a4]">
               Claim free testnet liquidity for DEX beta testing.
@@ -244,12 +258,12 @@ export function FaucetCard() {
           <div className="text-sm text-[#9ca59a]">Faucet Drip</div>
           <div className="mt-3 flex items-center gap-3 text-[28px] font-semibold text-[#f4f7f3]">
             <Coins className="size-6 text-[#67f59c]" />
-            {dripAmount ? Number(formatEther(dripAmount)).toLocaleString() : "1,000"} xUSDT
+            {dripAmount ? Number(formatEther(dripAmount)).toLocaleString() : "1,000"} COR
           </div>
         </div>
 
         <div className="rounded-[24px] border border-[#203021] bg-[#132016] px-5 py-4">
-          <div className="text-sm text-[#9ca59a]">Your xUSDT Balance</div>
+          <div className="text-sm text-[#9ca59a]">Your COR Balance</div>
           <div className="mt-3 text-[28px] font-semibold text-[#f4f7f3]">
             {quoteBalance?.value ? Number(formatEther(quoteBalance.value)).toLocaleString(undefined, {
               minimumFractionDigits: 2,
@@ -259,27 +273,49 @@ export function FaucetCard() {
         </div>
       </div>
 
-      <div className="mt-5 rounded-[24px] border border-[#203021] bg-[#132016] px-5 py-4 text-sm text-[#a8b1a4]">
-        {isOnCooldown
-          ? `Cooldown active. You can claim again in ${formatDuration(cooldownRemaining)}.`
-          : "Each wallet can claim once every 24 hours."}
+      <div className="mt-5 space-y-3">
+        <div className="rounded-[24px] border border-[#203021] bg-[#132016] px-5 py-4 text-sm text-[#a8b1a4]">
+          {isOnCooldown
+            ? `Cooldown active. You can claim again in ${formatDuration(cooldownRemaining)}.`
+            : "Each wallet can claim once every 24 hours."}
+        </div>
+
+        <div className="rounded-[24px] border border-[#2f3f2f] bg-[#101711] px-5 py-4 text-sm text-[#b9c3b5]">
+          Claim amount is fixed at <span className="font-semibold text-[#eef2eb]">1,000 COR</span>. There is no input field because the faucet contract only supports a fixed [`requestTokens()`](src/components/dashboard/faucet-card.tsx:17) claim amount.
+        </div>
       </div>
 
-      <button
-        type="button"
-        disabled={isClaimDisabled}
-        onClick={() => void handleClaim()}
-        className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-[24px] bg-[linear-gradient(90deg,#58ef95_0%,#e7cd61_100%)] px-5 py-5 text-xl font-semibold text-[#081108] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-50 sm:text-[20px]"
-      >
-        {isReceiptPending ? (
-          <>
-            <Loader2 className="size-5 animate-spin" />
-            Claiming...
-          </>
-        ) : (
-          "Claim 1,000 xUSDT"
-        )}
-      </button>
+      <div className="mt-6 grid gap-4">
+        <Button
+          type="button"
+          disabled={isClaimDisabled}
+          isLoading={isClaimLoading}
+          onClick={() => void handleClaim()}
+          className="w-full rounded-[24px] px-5 py-5 text-xl sm:text-[20px]"
+        >
+          Claim 1,000 COR
+        </Button>
+
+        <div className="rounded-[28px] border border-[#223126] bg-[linear-gradient(180deg,#111713_0%,#0c120d_100%)] px-5 py-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-xs uppercase tracking-[0.22em] text-[#7ef68f]">Native Gas Support</div>
+              <h3 className="mt-2 text-lg font-semibold text-[#f2f6ef]">OKB Testnet Faucet</h3>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-[#aab3a7]">
+                Need native OKB for gas? Open the official X Layer faucet to top up your wallet before swapping or executing intents.
+              </p>
+            </div>
+            <Button
+              type="button"
+              onClick={handleOpenOkbFaucet}
+              className="w-full shrink-0 rounded-[18px] px-5 py-4 text-sm sm:w-auto"
+            >
+              Open Official Faucet
+              <ArrowUpRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {displayedStatusMessage ? (
         <div className={`mt-5 rounded-2xl border px-4 py-3 text-sm ${statusClassName}`}>

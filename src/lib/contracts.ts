@@ -15,6 +15,7 @@ export type ChainContracts = {
   nftCollectionAddress: `0x${string}`;
   swapRouterAddress: `0x${string}`;
   faucetAddress: `0x${string}`;
+  soulboundAddress: `0x${string}`;
   defaultRecipientAddress: `0x${string}`;
 };
 
@@ -55,6 +56,7 @@ export const contractsByChainId: ContractsByChainId = {
     nftCollectionAddress: readAddressEnv("NEXT_PUBLIC_XLAYER_NFT_COLLECTION_ADDRESS", ZERO_ADDRESS),
     swapRouterAddress: readAddressEnv("NEXT_PUBLIC_XLAYER_SWAP_ROUTER_ADDRESS", ZERO_ADDRESS),
     faucetAddress: readAddressEnv("NEXT_PUBLIC_XLAYER_FAUCET_ADDRESS", ZERO_ADDRESS),
+    soulboundAddress: readAddressEnv("NEXT_PUBLIC_XLAYER_SOULBOUND_ADDRESS", ZERO_ADDRESS),
     defaultRecipientAddress: readAddressEnv("NEXT_PUBLIC_XLAYER_RECIPIENT_ADDRESS", ZERO_ADDRESS),
   },
   [SEPOLIA_CHAIN_ID]: {
@@ -70,6 +72,7 @@ export const contractsByChainId: ContractsByChainId = {
     nftCollectionAddress: readAddressEnv("NEXT_PUBLIC_SEPOLIA_NFT_COLLECTION_ADDRESS", ZERO_ADDRESS),
     swapRouterAddress: readAddressEnv("NEXT_PUBLIC_SEPOLIA_SWAP_ROUTER_ADDRESS", ZERO_ADDRESS),
     faucetAddress: readAddressEnv("NEXT_PUBLIC_SEPOLIA_FAUCET_ADDRESS", ZERO_ADDRESS),
+    soulboundAddress: readAddressEnv("NEXT_PUBLIC_SEPOLIA_SOULBOUND_ADDRESS", ZERO_ADDRESS),
     defaultRecipientAddress: readAddressEnv("NEXT_PUBLIC_SEPOLIA_RECIPIENT_ADDRESS", ZERO_ADDRESS),
   },
 };

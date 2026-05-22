@@ -9,13 +9,16 @@ error TransferFailed();
 
 contract XCupSwapRouter {
     IERC20 public immutable targetToken;
+    uint256 public constant TOKEN_PER_NATIVE = 100_000;
 
     constructor(address _targetToken) {
         targetToken = IERC20(_targetToken);
     }
 
     function swapNativeForExactTokens(uint256 amountOut) external payable {
-        if (targetToken.balanceOf(address(this)) < amountOut) {
+        uint256 quotedAmountOut = getNativeToTokenQuote(msg.value);
+
+        if (amountOut != quotedAmountOut || targetToken.balanceOf(address(this)) < amountOut) {
             revert InsufficientLiquidity();
         }
 
@@ -26,7 +29,7 @@ contract XCupSwapRouter {
     }
 
     function swapTokensForNative(uint256 amountIn) external {
-        uint256 amountOut = amountIn;
+        uint256 amountOut = getTokenToNativeQuote(amountIn);
 
         if (address(this).balance < amountOut) {
             revert InsufficientNativeLiquidity();
@@ -41,6 +44,14 @@ contract XCupSwapRouter {
         if (!sent) {
             revert TransferFailed();
         }
+    }
+
+    function getNativeToTokenQuote(uint256 amountIn) public pure returns (uint256) {
+        return amountIn * TOKEN_PER_NATIVE;
+    }
+
+    function getTokenToNativeQuote(uint256 amountIn) public pure returns (uint256) {
+        return amountIn / TOKEN_PER_NATIVE;
     }
 
     receive() external payable {}

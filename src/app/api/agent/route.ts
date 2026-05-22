@@ -1,8 +1,8 @@
-import { parseEther } from "viem";
 import { NextResponse } from "next/server";
+import { parseEther } from "viem";
 import { getContractsForChain, hasConfiguredAddress } from "@/lib/contracts";
 
-type IntentType = "SWAP_TOKENS" | "BUY_NFT" | "UNKNOWN";
+type IntentAction = "MINT_TROPHY" | "CLAIM_FAUCET" | "SWAP_TOKENS" | "UNKNOWN";
 
 type IntentRequestBody = {
   prompt: string;
@@ -11,12 +11,15 @@ type IntentRequestBody = {
 
 type IntentResponse = {
   status: "success" | "error";
-  type: IntentType;
-  transactionDetails?: {
-    contractAddress: string;
-    functionName: "buyItem" | "swapNativeForExactTokens" | "swapTokensForNative";
-    args: unknown[];
-    value: string;
+  action: IntentAction;
+  parameters?: {
+    amount?: string;
+    amountWei?: string;
+    tokenIn?: string;
+    tokenOut?: string;
+    contractAddress?: string;
+    functionName?: string;
+    value?: string;
     requiresApproval?: boolean;
     approval?: {
       tokenAddress: string;
@@ -27,16 +30,13 @@ type IntentResponse = {
   humanReadableSummary: string;
 };
 
-type ParsedAmount = {
-  raw: string;
-  normalized: string;
-};
-
 const DEFAULT_CHAIN_ID = 1952;
-const NFT_KEYWORDS = ["nft", "brazil", "france", "argentina", "germany", "croatia"];
-const SWAP_KEYWORDS = ["swap", "exchange", "convert", "trade token"];
-const REVERSE_SWAP_KEYWORDS = ["to okb", "to native", "xusdt to okb", "convert xusdt to native", "swap xusdt to okb"];
-const XL_TOKEN_ADDRESS = "0x7777777777777777777777777777777777777777";
+const ACTION_KEYWORDS = {
+  mintTrophy: ["mint", "trophy", "founder trophy", "soulbound"],
+  claimFaucet: ["claim faucet", "faucet", "request tokens", "drip"],
+  swapTokens: ["swap", "exchange", "convert", "trade"],
+} as const;
+const SUPPORTED_SWAP_TOKENS = ["COR", "OKB", "XL"] as const;
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json<IntentResponse>(
       {
         status: "error",
-        type: "UNKNOWN",
+        action: "UNKNOWN",
         humanReadableSummary: "Invalid JSON body. Please provide a valid prompt string.",
       },
       { status: 400 },
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     return NextResponse.json<IntentResponse>(
       {
         status: "error",
-        type: "UNKNOWN",
+        action: "UNKNOWN",
         humanReadableSummary:
           "Missing or invalid request body. Please provide a non-empty prompt string and numeric chainId.",
       },
@@ -68,8 +68,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsedIntent = parseIntent(intentRequest.prompt, intentRequest.chainId);
-  return NextResponse.json<IntentResponse>(parsedIntent);
+  return NextResponse.json<IntentResponse>(parseIntent(intentRequest.prompt, intentRequest.chainId));
 }
 
 function getIntentRequestFromBody(body: unknown): IntentRequestBody | null {
@@ -85,7 +84,6 @@ function getIntentRequestFromBody(body: unknown): IntentRequestBody | null {
   }
 
   const trimmedPrompt = prompt.trim();
-
   if (trimmedPrompt.length === 0) {
     return null;
   }
@@ -94,157 +92,138 @@ function getIntentRequestFromBody(body: unknown): IntentRequestBody | null {
     return null;
   }
 
-  return {
-    prompt: trimmedPrompt,
-    chainId,
-  };
+  return { prompt: trimmedPrompt, chainId };
 }
 
 export function parseIntent(prompt: string, chainId: number): IntentResponse {
   const normalizedPrompt = prompt.toLowerCase();
   const activeContracts = getContractsForChain(chainId);
 
-  if (looksLikeBuyNftIntent(normalizedPrompt)) {
-    if (
-      !hasConfiguredAddress(activeContracts.marketplaceAddress)
-      || !hasConfiguredAddress(activeContracts.nftCollectionAddress)
-    ) {
+  if (looksLikeMintTrophyIntent(normalizedPrompt)) {
+    if (!hasConfiguredAddress(activeContracts.soulboundAddress)) {
       return {
         status: "error",
-        type: "BUY_NFT",
+        action: "MINT_TROPHY",
         humanReadableSummary:
-          `NFT marketplace contracts are not configured for chain ${chainId}. Deploy the contracts and set the corresponding NEXT_PUBLIC_* marketplace variables.`,
+          `Soulbound trophy address is not configured for chain ${chainId}. Set the corresponding NEXT_PUBLIC_*_SOULBOUND_ADDRESS variable before executing this intent.`,
       };
     }
 
-    const amount = extractAmount(prompt);
-    const tokenId = extractTokenId(prompt) ?? 1;
-    const paymentAmount = amount?.normalized ?? "50";
+    return {
+      status: "success",
+      action: "MINT_TROPHY",
+      parameters: {
+        contractAddress: activeContracts.soulboundAddress,
+        functionName: "mint",
+        value: parseEther("0.001").toString(),
+      },
+      humanReadableSummary: `Preparing transaction to mint the founder trophy on chain ${chainId}.`,
+    };
+  }
+
+  if (looksLikeClaimFaucetIntent(normalizedPrompt)) {
+    if (!hasConfiguredAddress(activeContracts.faucetAddress)) {
+      return {
+        status: "error",
+        action: "CLAIM_FAUCET",
+        humanReadableSummary:
+          `Faucet contract is not configured for chain ${chainId}. Set NEXT_PUBLIC_XLAYER_FAUCET_ADDRESS or the chain-specific faucet variable.`,
+      };
+    }
 
     return {
       status: "success",
-      type: "BUY_NFT",
-      transactionDetails: {
-        contractAddress: activeContracts.marketplaceAddress,
-        functionName: "buyItem",
-        args: [activeContracts.nftCollectionAddress, tokenId],
-        value: "0",
+      action: "CLAIM_FAUCET",
+      parameters: {
+        contractAddress: activeContracts.faucetAddress,
+        functionName: "requestTokens",
       },
-      humanReadableSummary: `Preparing transaction to buy NFT #${tokenId} for ${paymentAmount} USDT using the configured marketplace contract on chain ${chainId}.`,
+      humanReadableSummary: `Preparing transaction to claim faucet tokens on chain ${chainId}.`,
     };
   }
 
   if (looksLikeSwapIntent(normalizedPrompt)) {
-    if (!hasConfiguredAddress(activeContracts.swapRouterAddress)) {
+    if (!hasConfiguredAddress(activeContracts.swapRouterAddress) || !hasConfiguredAddress(activeContracts.quoteTokenAddress)) {
       return {
         status: "error",
-        type: "SWAP_TOKENS",
+        action: "SWAP_TOKENS",
         humanReadableSummary:
-          `Swap router is not configured for chain ${chainId}. Set the corresponding NEXT_PUBLIC_* router variables or disable swap execution until a router is available.`,
+          `Swap infrastructure is not configured for chain ${chainId}. Set the corresponding router and quote token variables before executing this intent.`,
       };
     }
 
-    const amount = extractAmount(prompt);
+    const amount = extractAmount(prompt) ?? "0.01";
     const isReverseSwap = looksLikeReverseSwapIntent(normalizedPrompt);
-    const fromToken = isReverseSwap ? "xUSDT" : (extractToken(prompt, ["USDT", "OKB", "XL"]) ?? "USDT");
-    const toToken = isReverseSwap
-      ? "OKB"
-      : (extractDestinationToken(prompt, ["USDT", "OKB", "XL"]) ?? (fromToken === "USDT" ? "OKB" : "USDT"));
-    const parsedAmount = parseEther(String(amount?.normalized ?? "100"));
+    const tokenIn = isReverseSwap ? "COR" : extractToken(prompt, SUPPORTED_SWAP_TOKENS) ?? "OKB";
+    const tokenOut = isReverseSwap ? "OKB" : extractDestinationToken(prompt, SUPPORTED_SWAP_TOKENS) ?? "COR";
+    const parsedAmount = parseEther(amount);
 
     return {
       status: "success",
-      type: "SWAP_TOKENS",
-      transactionDetails: isReverseSwap
-        ? {
-            contractAddress: activeContracts.swapRouterAddress,
-            functionName: "swapTokensForNative",
-            args: [parsedAmount.toString()],
-            value: "0",
-            requiresApproval: true,
-            approval: {
+      action: "SWAP_TOKENS",
+      parameters: {
+        amount,
+        amountWei: parsedAmount.toString(),
+        tokenIn,
+        tokenOut,
+        contractAddress: activeContracts.swapRouterAddress,
+        functionName: isReverseSwap ? "swapTokensForNative" : "swapNativeForExactTokens",
+        value: isReverseSwap ? "0" : parsedAmount.toString(),
+        requiresApproval: isReverseSwap,
+        approval: isReverseSwap
+          ? {
               tokenAddress: activeContracts.quoteTokenAddress,
               spenderAddress: activeContracts.swapRouterAddress,
               amount: parsedAmount.toString(),
-            },
-          }
-        : {
-            contractAddress: activeContracts.swapRouterAddress,
-            functionName: "swapNativeForExactTokens",
-            args: [parsedAmount.toString()],
-            value: parsedAmount.toString(),
-          },
-      humanReadableSummary: `Preparing transaction to swap ${amount?.normalized ?? "100"} ${fromToken} for ${toToken} through the configured router contract on chain ${chainId}.`,
+            }
+          : undefined,
+      },
+      humanReadableSummary: `Preparing transaction to swap ${amount} ${tokenIn} for ${tokenOut} on chain ${chainId}.`,
     };
   }
 
   return {
     status: "error",
-    type: "UNKNOWN",
+    action: "UNKNOWN",
     humanReadableSummary:
-      "Could not classify the prompt into a supported on-chain action. Try a swap or NFT purchase instruction.",
+      "Could not classify the prompt into a supported on-chain action. Try minting a trophy, claiming the faucet, or swapping tokens.",
   };
 }
 
-function looksLikeBuyNftIntent(prompt: string) {
-  return prompt.includes("buy") && NFT_KEYWORDS.some((keyword) => prompt.includes(keyword));
+function looksLikeMintTrophyIntent(prompt: string) {
+  return ACTION_KEYWORDS.mintTrophy.some((keyword) => prompt.includes(keyword));
+}
+
+function looksLikeClaimFaucetIntent(prompt: string) {
+  return ACTION_KEYWORDS.claimFaucet.some((keyword) => prompt.includes(keyword));
 }
 
 function looksLikeSwapIntent(prompt: string) {
-  return SWAP_KEYWORDS.some((keyword) => prompt.includes(keyword));
+  return ACTION_KEYWORDS.swapTokens.some((keyword) => prompt.includes(keyword));
 }
 
 function looksLikeReverseSwapIntent(prompt: string) {
-  return REVERSE_SWAP_KEYWORDS.some((keyword) => prompt.includes(keyword));
+  return prompt.includes("cor to okb") || prompt.includes("swap cor") || prompt.includes("convert cor");
 }
 
-function extractAmount(prompt: string): ParsedAmount | null {
+function extractAmount(prompt: string): string | null {
   const match = prompt.match(/(\d+(?:\.\d+)?)/);
-  if (!match) {
-    return null;
-  }
-
-  return {
-    raw: match[1],
-    normalized: match[1],
-  };
+  return match ? match[1] : null;
 }
 
-function extractTokenId(prompt: string): number | null {
-  const match = prompt.match(/#(\d+)/);
-  return match ? Number(match[1]) : null;
-}
-
-function extractToken(prompt: string, supportedTokens: string[]): string | null {
+function extractToken(prompt: string, supportedTokens: readonly string[]): string | null {
   const upperPrompt = prompt.toUpperCase();
   return supportedTokens.find((token) => upperPrompt.includes(token)) ?? null;
 }
 
-function extractDestinationToken(prompt: string, supportedTokens: string[]): string | null {
+function extractDestinationToken(prompt: string, supportedTokens: readonly string[]): string | null {
   const upperPrompt = prompt.toUpperCase();
   const pairMatch = upperPrompt.match(/(?:FOR|TO)\s+([A-Z]{2,10})/);
 
-  if (pairMatch && supportedTokens.includes(pairMatch[1])) {
+  if (pairMatch && supportedTokens.includes(pairMatch[1] as (typeof supportedTokens)[number])) {
     return pairMatch[1];
   }
 
   const mentionedTokens = supportedTokens.filter((token) => upperPrompt.includes(token));
   return mentionedTokens.length > 1 ? mentionedTokens[1] : null;
-}
-
-function resolveTokenAddress(
-  token: string,
-  quoteTokenAddress: string,
-  defaultRecipientAddress: string,
-): string {
-  switch (token) {
-    case "USDT":
-      return quoteTokenAddress;
-    case "OKB":
-      return defaultRecipientAddress;
-    case "XL":
-      return XL_TOKEN_ADDRESS;
-    default:
-      return quoteTokenAddress;
-  }
 }

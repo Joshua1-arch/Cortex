@@ -564,22 +564,22 @@ export function NFTMarket() {
               </h2>
 
               <p className="mt-5 max-w-xl text-sm leading-7 text-[#c6c8c2] sm:text-lg sm:leading-8">
-                Own the most legendary moments in football history. Live metadata and ownership are
-                pulled directly from your X Layer NFT collection contract.
+                Discover Cortex-native collectibles, founder credentials, and live ownership data
+                pulled directly from your X Layer NFT contracts.
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  className="rounded-2xl bg-[#4ff08d] px-7 py-4 text-sm font-semibold text-[#08110b] transition hover:brightness-105 sm:min-w-[176px]"
+                  className="rounded-2xl bg-[#4ff08d] px-7 py-4 text-sm font-semibold text-[#08110b] shadow-[0_12px_30px_rgba(79,240,141,0.18)] transition hover:-translate-y-0.5 hover:brightness-105 sm:min-w-[176px]"
                 >
-                  View Collection
+                  Explore Collection
                 </button>
                 <button
                   type="button"
-                  className="rounded-2xl border border-[#39ce76] bg-transparent px-7 py-4 text-sm font-semibold text-[#e8f8ee] transition hover:bg-[#0c160f] sm:min-w-[176px]"
+                  className="rounded-2xl border border-[#39ce76] bg-transparent px-7 py-4 text-sm font-semibold text-[#e8f8ee] transition hover:-translate-y-0.5 hover:bg-[#0c160f] sm:min-w-[176px]"
                 >
-                  Learn More
+                  View Cortex Drops
                 </button>
               </div>
             </div>
@@ -598,7 +598,7 @@ export function NFTMarket() {
               <div>
                 <div className="text-sm uppercase tracking-[0.12em] text-[#f1c95e]">OG Soulbound Trophy</div>
                 <h3 className="mt-2 text-2xl font-semibold tracking-[-0.04em] text-[#f1f1ea]">
-                  Claim the World Cup founder trophy badge
+                  Claim the Cortex founder trophy badge
                 </h3>
                 <p className="mt-3 max-w-2xl text-sm leading-7 text-[#c6c8c2]">
                   Mint the production soulbound trophy directly to your connected wallet.
@@ -648,7 +648,7 @@ export function NFTMarket() {
                   className={`rounded-full px-5 py-3 transition ${
                     isActive
                       ? "border border-[#1f7b46] bg-[#0d2a18] text-[#61f5a1] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-                      : "text-[#c6c8c2] hover:text-white"
+                      : "text-[#c6c8c2] hover:bg-[#0f1711] hover:text-white"
                   }`}
                 >
                   {category}
@@ -796,15 +796,14 @@ export function NFTMarket() {
 
               <div>
                 <div className="text-sm font-semibold uppercase tracking-[0.12em] text-[#57f49b]">
-                  Market Insight by X-Agent
+                  Market Insight by Cortex Agent
                 </div>
                 <h3 className="mt-3 text-2xl font-semibold tracking-[-0.04em] text-[#f1f1ea]">
-                  Bullish Momentum Detected
+                  Founder collectibles gaining traction
                 </h3>
                 <p className="mt-4 max-w-2xl text-base leading-8 text-[#c6c8c2]">
-                  Historical data suggests Legend Series NFTs appreciated by 24% in the 30 days
-                  leading up to the Opening Ceremony. Current buy wall for Legendaries is
-                  strengthening at 4.2 ETH.
+                  On-chain activity suggests increased demand for founder-grade collectibles as new
+                  wallets enter the Cortex ecosystem and explore agent-assisted trading flows.
                 </p>
 
                 <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -826,24 +825,24 @@ export function NFTMarket() {
 
             <div className="mt-6 space-y-4 text-base text-[#f0efe6]">
               <div className="flex items-center justify-between gap-4">
-                <span>Stadium Pass</span>
+                <span>Founder Badge</span>
                 <span className="font-mono text-[#57f49b]">+12.4%</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span>Goal Moments</span>
+                <span>Genesis Access Pass</span>
                 <span className="font-mono text-[#57f49b]">+8.1%</span>
               </div>
               <div className="flex items-center justify-between gap-4">
-                <span>Jerseys</span>
+                <span>Agent Relic</span>
                 <span className="font-mono text-[#ff8d7d]">-2.4%</span>
               </div>
             </div>
 
             <button
               type="button"
-              className="mt-8 w-full rounded-2xl bg-[#ebc75d] px-5 py-4 text-base font-semibold text-[#171208] transition hover:brightness-105"
+              className="mt-8 w-full rounded-2xl bg-[#ebc75d] px-5 py-4 text-base font-semibold text-[#171208] shadow-[0_12px_30px_rgba(235,199,93,0.18)] transition hover:-translate-y-0.5 hover:brightness-105"
             >
-              View Heatmap
+              View Cortex Heatmap
             </button>
           </div>
         </div>
