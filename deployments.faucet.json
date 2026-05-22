@@ -1,0 +1,8 @@
+{
+  "network": "xlayerTestnet",
+  "deployer": "0xa15F501edB3F7C6873f00834a60Ea07449f1c16B",
+  "quoteToken": "0xEc290b02308137341bfe1E268B1C32F75971e2E4",
+  "faucet": "0x2C379629c667103e6F4D9c486b9B8C424ed9B1E8",
+  "mintAmount": "1000000000000000000000000",
+  "faucetFundingAmount": "500000000000000000000000"
+}

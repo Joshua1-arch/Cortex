@@ -1,0 +1,7 @@
+{
+  "network": "xlayerTestnet",
+  "deployer": "0xa15F501edB3F7C6873f00834a60Ea07449f1c16B",
+  "quoteToken": "0x455b612f51d6f87cf1cee0bc0f12922f0e8a3ec8",
+  "soulboundTrophy": "0x3D39b07817508E329956B97C9e2a2b4d8D51d456",
+  "baseURI": "ipfs://QmYourSoulboundTrophyMetadataCid/"
+}
