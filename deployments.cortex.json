@@ -1,0 +1,12 @@
+{
+  "network": "xlayerTestnet",
+  "deployer": "0xa15F501edB3F7C6873f00834a60Ea07449f1c16B",
+  "quoteToken": "0x4Eece507F40Bc61C99D790664C9258DC9CAbc382",
+  "faucet": "0x00103031F0Bf87946e77afB7C251ea9a46c9b096",
+  "marketplace": "0x7c6DA1DE8c4000b1aC98Bb95508D46F671A0d5e6",
+  "swapRouter": "0xFd03c0c5248e0F10155BEA6d7A450461B23CFEFd",
+  "soulbound": "0xC6a622eBaC26F2FE56Fe9a97DCA984060077Fb25",
+  "faucetFundingAmount": "250000000000000000000000",
+  "routerFundingAmount": "500000000000000000000000",
+  "rewardPoolAmount": "750000000000000000000000"
+}

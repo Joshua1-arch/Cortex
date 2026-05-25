@@ -54,6 +54,7 @@ export function FaucetCard() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"idle" | "success" | "error">("idle");
   const [submittedHash, setSubmittedHash] = useState<Hex | undefined>();
+  const [isClaimSubmitting, setIsClaimSubmitting] = useState(false);
   const { address, chainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
   const { showToast } = useToast();
@@ -175,9 +176,10 @@ export function FaucetCard() {
     || !isSupportedChain
     || !isFaucetConfigured
     || isOnCooldown
+    || isClaimSubmitting
     || isReceiptPending;
 
-  const isClaimLoading = isReceiptPending;
+  const isClaimLoading = isClaimSubmitting || isReceiptPending;
 
   function handleOpenOkbFaucet() {
     if (!address) {
@@ -214,6 +216,7 @@ export function FaucetCard() {
     }
 
     try {
+      setIsClaimSubmitting(true);
       setSubmittedHash(undefined);
       setStatusMessage("Submitting faucet claim...");
       setStatusTone("idle");
@@ -229,6 +232,8 @@ export function FaucetCard() {
     } catch (error) {
       setStatusMessage(`Claim failed: ${getErrorMessage(error)}`);
       setStatusTone("error");
+    } finally {
+      setIsClaimSubmitting(false);
     }
   }
 
@@ -290,6 +295,7 @@ export function FaucetCard() {
           type="button"
           disabled={isClaimDisabled}
           isLoading={isClaimLoading}
+          loadingText={isClaimSubmitting ? "Opening wallet..." : "Confirming claim..."}
           onClick={() => void handleClaim()}
           className="w-full rounded-[24px] px-5 py-5 text-xl sm:text-[20px]"
         >

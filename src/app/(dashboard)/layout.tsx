@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useSyncExternalStore, useState, type ReactNode } from "react";
 import {
   Activity,
@@ -13,20 +13,19 @@ import {
   X,
 } from "lucide-react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
-
 const topNavItems = [
   { href: "/trade", label: "Trade" },
   { href: "/nfts", label: "NFTs" },
   { href: "/faucet", label: "Faucet" },
-  { href: "/pools", label: "Pools" },
   { href: "/agents", label: "Agents" },
+  { href: "/admin/matches", label: "Admin" },
   { href: "/history", label: "History" },
 ] as const;
 
 const sideNavItems = [
   { href: "/trade", label: "Dashboard", icon: LayoutGrid },
-  { href: "/trade", label: "Token Swap", icon: ArrowRightLeft },
-  { href: "/nfts", label: "NFT Market", icon: Gift },
+  { href: "/trade", label: "Reward Swap", icon: ArrowRightLeft },
+  { href: "/nfts", label: "Prediction Market", icon: Gift },
   { href: "/faucet", label: "COR Faucet", icon: Gift },
   { href: "/agents", label: "AI Agents", icon: LayoutGrid },
   { href: "/history", label: "Activity", icon: Activity },
@@ -40,7 +39,6 @@ export default function DashboardLayout({
 }) {
   const mounted = useSyncExternalStore(subscribeToClientRender, getClientSnapshot, getServerSnapshot);
   const pathname = usePathname();
-  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isWalletActionPending, setIsWalletActionPending] = useState(false);
   const [walletMenuOpen, setWalletMenuOpen] = useState(false);
@@ -83,18 +81,6 @@ export default function DashboardLayout({
     };
   }, []);
 
-  useEffect(() => {
-    if (!mounted) {
-      return;
-    }
-
-    if (!isConnected) {
-      setWalletMenuOpen(false);
-      setIsMobileMenuOpen(false);
-      router.replace("/");
-    }
-  }, [isConnected, mounted, router]);
-
   async function handleWalletAction() {
     if (!mounted || isWalletActionPending) {
       return;
@@ -136,39 +122,6 @@ export default function DashboardLayout({
     } finally {
       setIsWalletActionPending(false);
     }
-  }
-
-  if (mounted && !isConnected) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,rgba(63,255,99,0.07),transparent_20%),linear-gradient(180deg,#030503_0%,#050805_100%)] px-4 text-[#f3f5ef]">
-        <div className="w-full max-w-xl rounded-[32px] border border-[#1b281d] bg-[linear-gradient(180deg,#101711_0%,#0a110b_100%)] p-8 text-center shadow-[0_20px_60px_rgba(0,0,0,0.45)] sm:p-10">
-          <div className="mx-auto flex size-16 items-center justify-center rounded-full border border-[#28442d] bg-[linear-gradient(180deg,#16311c_0%,#0e1510_100%)] text-2xl text-[#7cff4d] shadow-[0_0_24px_rgba(90,255,62,0.08)]">
-            ⬡
-          </div>
-          <h1 className="mt-6 text-3xl font-semibold tracking-[-0.05em] text-[#f5f7f1] sm:text-[38px]">
-            Connect your wallet to enter Cortex
-          </h1>
-          <p className="mt-4 text-sm leading-7 text-[#a9b2a6] sm:text-base">
-            Dashboard routes are protected. Connect with OKX Wallet or MetaMask to access swaps, faucet liquidity, and AI-powered intent execution.
-          </p>
-          <button
-            type="button"
-            onClick={() => void handleWalletAction()}
-            disabled={isWalletActionPending}
-            className="mt-8 inline-flex min-w-[220px] items-center justify-center gap-3 rounded-[20px] bg-[linear-gradient(90deg,#61f58f_0%,#d7f36b_100%)] px-6 py-4 text-base font-semibold text-[#071108] shadow-[0_12px_30px_rgba(67,175,92,0.25)] transition hover:scale-[1.01] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isWalletActionPending ? (
-              <>
-                <span className="size-4 animate-spin rounded-full border-2 border-[#071108]/25 border-t-[#071108]" />
-                Connecting...
-              </>
-            ) : (
-              "Connect Wallet"
-            )}
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -224,16 +177,16 @@ export default function DashboardLayout({
             })}
           </nav>
 
-          <div className="hidden items-center gap-3 sm:gap-4 md:flex">
-            <div className="hidden items-center gap-2 rounded-full border border-[#1c291d] bg-[#111811] px-4 py-2 font-mono text-[12px] text-[#c3cabc] xl:flex">
-              <span className="size-2.5 rounded-full bg-[#55f397] shadow-[0_0_18px_rgba(85,243,151,0.55)]" />
-              <span className="whitespace-nowrap">X Layer Testnet</span>
+          <div className="flex items-center gap-2 sm:gap-3 md:gap-4">
+            <div className="hidden items-center gap-2 rounded-full border border-[#1c291d] bg-[#111811] px-3 py-2 font-mono text-[11px] text-[#c3cabc] sm:px-4 sm:text-[12px] xl:flex">
+              <span className="size-2.5 shrink-0 rounded-full bg-[#55f397] shadow-[0_0_18px_rgba(85,243,151,0.55)]" />
+              <span className="whitespace-nowrap">X Layer</span>
             </div>
-            <div className="hidden gap-2 lg:flex">
+            <div className="hidden gap-2 md:flex lg:flex">
               {dashboardHighlights.map((item) => (
                 <div
                   key={item.label}
-                  className="rounded-full border border-[#1e2b20] bg-[#0f1611] px-3 py-2 text-[11px] text-[#b8c1b5]"
+                  className="hidden rounded-full border border-[#1e2b20] bg-[#0f1611] px-3 py-2 text-[11px] text-[#b8c1b5] lg:block"
                 >
                   <span className="text-[#7ef68f]">{item.label}:</span> {item.value}
                 </div>
@@ -244,7 +197,7 @@ export default function DashboardLayout({
                 type="button"
                 onClick={() => void handleWalletAction()}
                 disabled={isWalletActionPending}
-                className="inline-flex min-w-[156px] items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#61f58f_0%,#d7f36b_100%)] px-5 py-3 text-sm font-semibold text-[#071108] shadow-[0_12px_30px_rgba(67,175,92,0.25)] transition hover:scale-[1.01] hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex min-w-[7.5rem] items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(90deg,#61f58f_0%,#d7f36b_100%)] px-3 py-2.5 text-xs font-semibold text-[#071108] shadow-[0_12px_30px_rgba(67,175,92,0.25)] transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-60 sm:min-w-[156px] sm:px-5 sm:py-3 sm:text-sm"
               >
                 {isWalletActionPending ? (
                   <>
@@ -346,7 +299,7 @@ export default function DashboardLayout({
                 Agent routing active
               </div>
               <div className="mt-3 text-sm leading-6 text-[#b7c0b3]">
-                Swap COR, claim faucet liquidity, and execute wallet intents from one responsive workspace.
+                Swap COR, claim faucet liquidity, review live X Layer proof, and execute wallet intents from one responsive workspace.
               </div>
             </div>
           </div>

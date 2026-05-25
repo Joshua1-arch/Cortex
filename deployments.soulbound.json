@@ -1,7 +1,27 @@
 {
   "network": "xlayerTestnet",
   "deployer": "0xa15F501edB3F7C6873f00834a60Ea07449f1c16B",
-  "quoteToken": "0x455b612f51d6f87cf1cee0bc0f12922f0e8a3ec8",
   "soulboundTrophy": "0x3D39b07817508E329956B97C9e2a2b4d8D51d456",
-  "baseURI": "ipfs://QmYourSoulboundTrophyMetadataCid/"
+  "baseURI": "ipfs://QmYourSoulboundTrophyMetadataCid/",
+  "defaultCampaign": {
+    "id": 1,
+    "slug": "wc-2026-opening-match",
+    "homeTeam": "Brazil",
+    "awayTeam": "Argentina",
+    "startsAt": 1779565161,
+    "closesAt": 1779651561,
+    "createTransactionHash": "0x1d10a3815db3c148a874963401cea9e70cbbef944b74e61fd07cdf807a82a3ff"
+  },
+  "metadata": {
+    "name": "Cortex Supporter Passport",
+    "symbol": "COR-PASS",
+    "mintPriceEth": "0.001",
+    "reputationModel": {
+      "starterReputation": 100,
+      "faucetReward": 40,
+      "swapReward": 60,
+      "predictionReward": 120,
+      "winReward": 180
+    }
+  }
 }

@@ -12,6 +12,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -51,6 +52,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -82,7 +84,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC20\\IERC20.sol": {
-      "lastModificationDate": 1779315653117,
+      "lastModificationDate": 1779355959657,
       "contentHash": "9261adf6457863de3e9892f51317ec89",
       "sourceName": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
       "solcConfig": {
@@ -92,6 +94,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -118,7 +121,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\utils\\Context.sol": {
-      "lastModificationDate": 1779315652576,
+      "lastModificationDate": 1779355958369,
       "contentHash": "67bfbc07588eb8683b3fd8f6f909563e",
       "sourceName": "@openzeppelin/contracts/utils/Context.sol",
       "solcConfig": {
@@ -128,6 +131,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -164,6 +168,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -192,7 +197,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC20\\extensions\\IERC20Metadata.sol": {
-      "lastModificationDate": 1779315653124,
+      "lastModificationDate": 1779355959672,
       "contentHash": "513778b30d2750f5d2b9b19bbcf748a5",
       "sourceName": "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol",
       "solcConfig": {
@@ -202,6 +207,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -230,7 +236,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\interfaces\\IERC20.sol": {
-      "lastModificationDate": 1779315653114,
+      "lastModificationDate": 1779355959653,
       "contentHash": "68620db2da7583d9a4919096ac77f577",
       "sourceName": "@openzeppelin/contracts/interfaces/IERC20.sol",
       "solcConfig": {
@@ -240,6 +246,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -266,7 +273,7 @@
       "artifacts": []
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\interfaces\\IERC1363.sol": {
-      "lastModificationDate": 1779315653091,
+      "lastModificationDate": 1779355959601,
       "contentHash": "a7fd0f05e36b0d0a21c75340c9c639ec",
       "sourceName": "@openzeppelin/contracts/interfaces/IERC1363.sol",
       "solcConfig": {
@@ -276,6 +283,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -305,7 +313,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\interfaces\\IERC165.sol": {
-      "lastModificationDate": 1779315653100,
+      "lastModificationDate": 1779355959620,
       "contentHash": "947853028399b7de34bcc3704ee06e99",
       "sourceName": "@openzeppelin/contracts/interfaces/IERC165.sol",
       "solcConfig": {
@@ -315,6 +323,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -341,7 +350,7 @@
       "artifacts": []
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\utils\\introspection\\IERC165.sol": {
-      "lastModificationDate": 1779315653104,
+      "lastModificationDate": 1779355959624,
       "contentHash": "7074c93b1ea0a122063f26ddd1db1032",
       "sourceName": "@openzeppelin/contracts/utils/introspection/IERC165.sol",
       "solcConfig": {
@@ -351,6 +360,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -377,7 +387,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC721\\IERC721.sol": {
-      "lastModificationDate": 1779315653172,
+      "lastModificationDate": 1779355960187,
       "contentHash": "f62e11dbd302e17a5621a1438f4e054c",
       "sourceName": "@openzeppelin/contracts/token/ERC721/IERC721.sol",
       "solcConfig": {
@@ -387,6 +397,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -415,8 +426,8 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\contracts\\NFTMarketplace.sol": {
-      "lastModificationDate": 1779315732211,
-      "contentHash": "f5b4293966baebb2485861b53d29c225",
+      "lastModificationDate": 1779631502674,
+      "contentHash": "3b5a9dad0ce73d1c62a33d341d792636",
       "sourceName": "contracts/NFTMarketplace.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -425,6 +436,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -443,11 +455,12 @@
         }
       },
       "imports": [
+        "@openzeppelin/contracts/access/Ownable.sol",
         "@openzeppelin/contracts/utils/ReentrancyGuard.sol",
         "@openzeppelin/contracts/token/ERC20/IERC20.sol",
         "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol",
-        "@openzeppelin/contracts/token/ERC721/IERC721.sol",
-        "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol"
+        "@openzeppelin/contracts/token/ERC721/ERC721.sol",
+        "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol"
       ],
       "versionPragmas": [
         "^0.8.24"
@@ -467,6 +480,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -493,7 +507,7 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC721\\IERC721Receiver.sol": {
-      "lastModificationDate": 1779315653196,
+      "lastModificationDate": 1779355960321,
       "contentHash": "d61660a41ce200e99816e4734f7fd202",
       "sourceName": "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol",
       "solcConfig": {
@@ -503,6 +517,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -539,6 +554,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -604,8 +620,8 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\contracts\\MockNFT.sol": {
-      "lastModificationDate": 1779355284241,
-      "contentHash": "640111fd7b1eb6a2a0163d9972ca8f12",
+      "lastModificationDate": 1779550451754,
+      "contentHash": "9ee660cffc9677bf1e2091023c3d9a00",
       "sourceName": "contracts/MockNFT.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -614,6 +630,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -633,6 +650,8 @@
       },
       "imports": [
         "@openzeppelin/contracts/token/ERC721/ERC721.sol",
+        "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol",
+        "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol",
         "@openzeppelin/contracts/access/Ownable.sol"
       ],
       "versionPragmas": [
@@ -653,6 +672,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -691,6 +711,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -735,6 +756,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -775,6 +797,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -813,6 +836,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -851,6 +875,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -890,6 +915,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -926,6 +952,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -965,6 +992,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -1003,6 +1031,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -1039,6 +1068,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -1067,8 +1097,8 @@
       ]
     },
     "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\contracts\\SoulboundTrophy.sol": {
-      "lastModificationDate": 1779389811704,
-      "contentHash": "2b764f7aa5f63165704d59f4788a006c",
+      "lastModificationDate": 1779475326390,
+      "contentHash": "c1a884001c5417a23cf8f534d1889082",
       "sourceName": "contracts/SoulboundTrophy.sol",
       "solcConfig": {
         "version": "0.8.24",
@@ -1077,6 +1107,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -1117,6 +1148,7 @@
             "enabled": true,
             "runs": 200
           },
+          "viaIR": true,
           "evmVersion": "paris",
           "outputSelection": {
             "*": {
@@ -1143,6 +1175,206 @@
       "artifacts": [
         "XCupFaucet"
       ]
+    },
+    "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC721\\extensions\\ERC721Enumerable.sol": {
+      "lastModificationDate": 1779355959044,
+      "contentHash": "1e4b432e9069bd6f5935e071b74d180c",
+      "sourceName": "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../ERC721.sol",
+        "./IERC721Enumerable.sol",
+        "../../../utils/introspection/ERC165.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ERC721Enumerable"
+      ]
+    },
+    "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC721\\extensions\\ERC721URIStorage.sol": {
+      "lastModificationDate": 1779355959067,
+      "contentHash": "0b00dd0d9f2738855f17aa283bfa3ff5",
+      "sourceName": "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../ERC721.sol",
+        "./IERC721Metadata.sol",
+        "../../../utils/Strings.sol",
+        "../../../interfaces/IERC4906.sol",
+        "../../../interfaces/IERC165.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ERC721URIStorage"
+      ]
+    },
+    "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\token\\ERC721\\extensions\\IERC721Enumerable.sol": {
+      "lastModificationDate": 1779355960219,
+      "contentHash": "09d80d577d5abfc679455e7b67c5b537",
+      "sourceName": "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../IERC721.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.2"
+      ],
+      "artifacts": [
+        "IERC721Enumerable"
+      ]
+    },
+    "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\interfaces\\IERC4906.sol": {
+      "lastModificationDate": 1779355959731,
+      "contentHash": "4386d2e9b1578157802062e156bd9ae1",
+      "sourceName": "@openzeppelin/contracts/interfaces/IERC4906.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC165.sol",
+        "./IERC721.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.2"
+      ],
+      "artifacts": [
+        "IERC4906"
+      ]
+    },
+    "C:\\Users\\Joshua\\Desktop\\For Testing\\relay\\node_modules\\@openzeppelin\\contracts\\interfaces\\IERC721.sol": {
+      "lastModificationDate": 1779355960160,
+      "contentHash": "6b9716905fb42874ed1769ae7f7458b1",
+      "sourceName": "@openzeppelin/contracts/interfaces/IERC721.sol",
+      "solcConfig": {
+        "version": "0.8.24",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../token/ERC721/IERC721.sol"
+      ],
+      "versionPragmas": [
+        ">=0.6.2"
+      ],
+      "artifacts": []
     }
   }
 }

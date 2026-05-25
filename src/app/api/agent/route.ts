@@ -3,31 +3,81 @@ import { parseEther } from "viem";
 import { getContractsForChain, hasConfiguredAddress } from "@/lib/contracts";
 
 type IntentAction = "MINT_TROPHY" | "CLAIM_FAUCET" | "SWAP_TOKENS" | "UNKNOWN";
+type IntentGoal =
+  | "MINT_TROPHY"
+  | "CLAIM_COR"
+  | "SWAP_OKB_TO_COR"
+  | "SWAP_COR_TO_OKB"
+  | "EARN_AND_MINT"
+  | "UNKNOWN";
+type PlannerStatus = "success" | "error";
+type PlannerStepKind = "transaction" | "approval" | "guidance";
+type PlannerSeverity = "info" | "warning" | "error";
+type PlannerStepStatus = "ready" | "blocked" | "advisory";
+type PlannerPrerequisiteStatus = "satisfied" | "required" | "warning";
 
 type IntentRequestBody = {
   prompt: string;
   chainId: number;
 };
 
-type IntentResponse = {
-  status: "success" | "error";
-  action: IntentAction;
-  parameters?: {
-    amount?: string;
-    amountWei?: string;
-    tokenIn?: string;
-    tokenOut?: string;
-    contractAddress?: string;
-    functionName?: string;
-    value?: string;
-    requiresApproval?: boolean;
-    approval?: {
-      tokenAddress: string;
-      spenderAddress: string;
-      amount: string;
-    };
+type ExecutionParameters = {
+  amount?: string;
+  amountWei?: string;
+  tokenIn?: string;
+  tokenOut?: string;
+  contractAddress?: string;
+  functionName?: string;
+  value?: string;
+  requiresApproval?: boolean;
+  approval?: {
+    tokenAddress: string;
+    spenderAddress: string;
+    amount: string;
   };
+};
+
+type PlannerPrerequisite = {
+  id: string;
+  label: string;
+  status: PlannerPrerequisiteStatus;
+  description: string;
+};
+
+type PlannerStep = {
+  id: string;
+  title: string;
+  kind: PlannerStepKind;
+  status: PlannerStepStatus;
+  description: string;
+  ctaLabel?: string;
+  action: IntentAction;
+  parameters?: ExecutionParameters;
+  blockers?: string[];
+};
+
+type RecoveryTip = {
+  title: string;
+  description: string;
+  severity: PlannerSeverity;
+};
+
+type IntentResponse = {
+  status: PlannerStatus;
+  action: IntentAction;
+  goal: IntentGoal;
+  parameters?: ExecutionParameters;
   humanReadableSummary: string;
+  planner?: {
+    goal: IntentGoal;
+    chainId: number;
+    chainName: string;
+    prompt: string;
+    summary: string;
+    prerequisites: PlannerPrerequisite[];
+    steps: PlannerStep[];
+    recovery: RecoveryTip[];
+  };
 };
 
 const DEFAULT_CHAIN_ID = 1952;
@@ -35,8 +85,12 @@ const ACTION_KEYWORDS = {
   mintTrophy: ["mint", "trophy", "founder trophy", "soulbound"],
   claimFaucet: ["claim faucet", "faucet", "request tokens", "drip"],
   swapTokens: ["swap", "exchange", "convert", "trade"],
+  goalEarnAndMint: ["earn and mint", "get cor and mint", "faucet then mint", "swap then mint", "complete onboarding"],
 } as const;
 const SUPPORTED_SWAP_TOKENS = ["COR", "OKB", "XL"] as const;
+const COR_PER_OKB = 100_000n;
+const FAUCET_AMOUNT_COR = "1000";
+const TROPHY_MINT_PRICE_OKB = "0.001";
 
 export async function POST(request: Request) {
   let body: unknown;
@@ -48,6 +102,7 @@ export async function POST(request: Request) {
       {
         status: "error",
         action: "UNKNOWN",
+        goal: "UNKNOWN",
         humanReadableSummary: "Invalid JSON body. Please provide a valid prompt string.",
       },
       { status: 400 },
@@ -61,6 +116,7 @@ export async function POST(request: Request) {
       {
         status: "error",
         action: "UNKNOWN",
+        goal: "UNKNOWN",
         humanReadableSummary:
           "Missing or invalid request body. Please provide a non-empty prompt string and numeric chainId.",
       },
@@ -98,96 +154,508 @@ function getIntentRequestFromBody(body: unknown): IntentRequestBody | null {
 export function parseIntent(prompt: string, chainId: number): IntentResponse {
   const normalizedPrompt = prompt.toLowerCase();
   const activeContracts = getContractsForChain(chainId);
+  const goal = inferGoal(normalizedPrompt);
 
-  if (looksLikeMintTrophyIntent(normalizedPrompt)) {
-    if (!hasConfiguredAddress(activeContracts.soulboundAddress)) {
-      return {
-        status: "error",
-        action: "MINT_TROPHY",
-        humanReadableSummary:
-          `Soulbound trophy address is not configured for chain ${chainId}. Set the corresponding NEXT_PUBLIC_*_SOULBOUND_ADDRESS variable before executing this intent.`,
-      };
-    }
-
+  if (goal === "UNKNOWN") {
     return {
-      status: "success",
-      action: "MINT_TROPHY",
-      parameters: {
-        contractAddress: activeContracts.soulboundAddress,
-        functionName: "mint",
-        value: parseEther("0.001").toString(),
+      status: "error",
+      action: "UNKNOWN",
+      goal,
+      humanReadableSummary:
+        "Could not classify the prompt into a supported Cortex action. Try claiming COR, swapping between OKB and COR, minting a trophy, or asking for a full onboarding flow.",
+      planner: {
+        goal,
+        chainId,
+        chainName: activeContracts.chainName,
+        prompt,
+        summary: "The agent needs a clearer supported objective before it can build a plan.",
+        prerequisites: [
+          {
+            id: "supported-intent",
+            label: "Use a supported Cortex action",
+            status: "required",
+            description: "Supported actions: faucet claim, OKB/COR swaps, trophy mint, or a combined onboarding goal.",
+          },
+        ],
+        steps: [
+          {
+            id: "clarify-intent",
+            title: "Rewrite the prompt with a supported goal",
+            kind: "guidance",
+            status: "advisory",
+            description:
+              'Examples: "Claim 1,000 COR", "Swap 0.1 OKB for COR", or "Get COR and mint the founder trophy".',
+            action: "UNKNOWN",
+          },
+        ],
+        recovery: [
+          {
+            title: "Try a more explicit command",
+            description:
+              "Mention the asset, direction, and outcome you want so the planner can generate executable steps.",
+            severity: "info",
+          },
+        ],
       },
-      humanReadableSummary: `Preparing transaction to mint the founder trophy on chain ${chainId}.`,
     };
   }
 
-  if (looksLikeClaimFaucetIntent(normalizedPrompt)) {
-    if (!hasConfiguredAddress(activeContracts.faucetAddress)) {
-      return {
-        status: "error",
-        action: "CLAIM_FAUCET",
-        humanReadableSummary:
-          `Faucet contract is not configured for chain ${chainId}. Set NEXT_PUBLIC_XLAYER_FAUCET_ADDRESS or the chain-specific faucet variable.`,
-      };
-    }
+  const planner = buildExecutionPlanner({
+    prompt,
+    normalizedPrompt,
+    chainId,
+    goal,
+  });
 
-    return {
-      status: "success",
+  const primaryExecutableStep = planner.steps.find(
+    (step) => (step.kind === "transaction" || step.kind === "approval") && step.parameters?.contractAddress,
+  );
+
+  return {
+    status: planner.steps.some((step) => step.status === "ready") ? "success" : "error",
+    action: primaryExecutableStep?.action ?? mapGoalToPrimaryAction(goal),
+    goal,
+    parameters: primaryExecutableStep?.parameters,
+    humanReadableSummary: planner.summary,
+    planner,
+  };
+}
+
+function buildExecutionPlanner({
+  prompt,
+  normalizedPrompt,
+  chainId,
+  goal,
+}: {
+  prompt: string;
+  normalizedPrompt: string;
+  chainId: number;
+  goal: IntentGoal;
+}) {
+  const activeContracts = getContractsForChain(chainId);
+  const prerequisites: PlannerPrerequisite[] = [];
+  const steps: PlannerStep[] = [];
+  const recovery: RecoveryTip[] = [];
+
+  prerequisites.push({
+    id: "wallet",
+    label: "Connected wallet",
+    status: "required",
+    description: "This planner prepares onchain actions, so the dashboard still requires the user to connect a wallet before execution.",
+  });
+
+  prerequisites.push({
+    id: "gas",
+    label: "Native gas balance",
+    status: "warning",
+    description: "Keep a small OKB balance available for gas before executing any step.",
+  });
+
+  if (goal === "CLAIM_COR") {
+    const faucetConfigured = hasConfiguredAddress(activeContracts.faucetAddress);
+
+    prerequisites.push({
+      id: "faucet-config",
+      label: "COR faucet configured",
+      status: faucetConfigured ? "satisfied" : "required",
+      description: faucetConfigured
+        ? "The COR faucet contract is configured for this chain."
+        : `Missing faucet contract for ${activeContracts.chainName}. Configure NEXT_PUBLIC_XLAYER_FAUCET_ADDRESS or the chain-specific equivalent.`,
+    });
+
+    steps.push({
+      id: "claim-cor",
+      title: `Claim ${FAUCET_AMOUNT_COR} COR from the faucet`,
+      kind: "transaction",
+      status: faucetConfigured ? "ready" : "blocked",
+      description: "Requests the fixed faucet drip directly from the COR faucet contract.",
+      ctaLabel: "Claim COR",
       action: "CLAIM_FAUCET",
-      parameters: {
-        contractAddress: activeContracts.faucetAddress,
-        functionName: "requestTokens",
-      },
-      humanReadableSummary: `Preparing transaction to claim faucet tokens on chain ${chainId}.`,
-    };
+      parameters: faucetConfigured
+        ? {
+            contractAddress: activeContracts.faucetAddress,
+            functionName: "requestTokens",
+          }
+        : undefined,
+      blockers: faucetConfigured ? [] : ["Faucet address is not configured for this chain."],
+    });
+
+    recovery.push({
+      title: "If the faucet rejects the claim",
+      description: "The faucet contract may be enforcing a cooldown. Wait for the cooldown window, then retry the claim step.",
+      severity: "warning",
+    });
   }
 
-  if (looksLikeSwapIntent(normalizedPrompt)) {
-    if (!hasConfiguredAddress(activeContracts.swapRouterAddress) || !hasConfiguredAddress(activeContracts.quoteTokenAddress)) {
-      return {
-        status: "error",
-        action: "SWAP_TOKENS",
-        humanReadableSummary:
-          `Swap infrastructure is not configured for chain ${chainId}. Set the corresponding router and quote token variables before executing this intent.`,
-      };
-    }
+  if (goal === "SWAP_OKB_TO_COR") {
+    const swapAmount = extractAmount(prompt) ?? "0.1";
+    const valueWei = parseEther(swapAmount).toString();
+    const corAmountOut = formatCorFromOkbInput(swapAmount);
+    const swapConfigured =
+      hasConfiguredAddress(activeContracts.swapRouterAddress) && hasConfiguredAddress(activeContracts.quoteTokenAddress);
 
-    const amount = extractAmount(prompt) ?? "0.01";
-    const isReverseSwap = looksLikeReverseSwapIntent(normalizedPrompt);
-    const tokenIn = isReverseSwap ? "COR" : extractToken(prompt, SUPPORTED_SWAP_TOKENS) ?? "OKB";
-    const tokenOut = isReverseSwap ? "OKB" : extractDestinationToken(prompt, SUPPORTED_SWAP_TOKENS) ?? "COR";
-    const parsedAmount = parseEther(amount);
+    prerequisites.push({
+      id: "router-config",
+      label: "Swap router configured",
+      status: swapConfigured ? "satisfied" : "required",
+      description: swapConfigured
+        ? "The Cortex swap router and COR token contracts are configured for this chain."
+        : `Missing router or COR token address for ${activeContracts.chainName}. Configure the chain-specific swap router and quote token variables.`,
+    });
 
-    return {
-      status: "success",
+    prerequisites.push({
+      id: "okb-balance",
+      label: `${swapAmount} OKB available for swap value`,
+      status: "warning",
+      description: `The wallet must hold at least ${swapAmount} OKB plus extra gas before this swap can execute.`,
+    });
+
+    steps.push({
+      id: "swap-okb-to-cor",
+      title: `Swap ${swapAmount} OKB for ${corAmountOut} COR`,
+      kind: "transaction",
+      status: swapConfigured ? "ready" : "blocked",
+      description: "Executes the router's fixed-rate native-to-COR swap.",
+      ctaLabel: "Swap OKB to COR",
       action: "SWAP_TOKENS",
-      parameters: {
-        amount,
-        amountWei: parsedAmount.toString(),
-        tokenIn,
-        tokenOut,
-        contractAddress: activeContracts.swapRouterAddress,
-        functionName: isReverseSwap ? "swapTokensForNative" : "swapNativeForExactTokens",
-        value: isReverseSwap ? "0" : parsedAmount.toString(),
-        requiresApproval: isReverseSwap,
-        approval: isReverseSwap
-          ? {
+      parameters: swapConfigured
+        ? {
+            amount: corAmountOut,
+            amountWei: parseEther(corAmountOut).toString(),
+            tokenIn: "OKB",
+            tokenOut: "COR",
+            contractAddress: activeContracts.swapRouterAddress,
+            functionName: "swapNativeForExactTokens",
+            value: valueWei,
+          }
+        : undefined,
+      blockers: swapConfigured ? [] : ["Swap router or COR token address is not configured."],
+    });
+
+    recovery.push({
+      title: "If the swap fails",
+      description: "Confirm the router still holds enough COR liquidity and the wallet has enough OKB for both value and gas.",
+      severity: "warning",
+    });
+  }
+
+  if (goal === "SWAP_COR_TO_OKB") {
+    const swapAmount = extractAmount(prompt) ?? "10000";
+    const amountWei = parseEther(swapAmount).toString();
+    const okbAmountOut = formatOkbFromCorInput(swapAmount);
+    const swapConfigured =
+      hasConfiguredAddress(activeContracts.swapRouterAddress) && hasConfiguredAddress(activeContracts.quoteTokenAddress);
+
+    prerequisites.push({
+      id: "router-config",
+      label: "Swap router configured",
+      status: swapConfigured ? "satisfied" : "required",
+      description: swapConfigured
+        ? "The Cortex swap router and COR token contracts are configured for this chain."
+        : `Missing router or COR token address for ${activeContracts.chainName}. Configure the chain-specific swap router and quote token variables.`,
+    });
+
+    prerequisites.push({
+      id: "cor-balance",
+      label: `${swapAmount} COR available for swap`,
+      status: "warning",
+      description: `The wallet must hold at least ${swapAmount} COR before this reverse swap can execute.`,
+    });
+
+    steps.push({
+      id: "approve-cor",
+      title: `Approve ${swapAmount} COR for the router`,
+      kind: "approval",
+      status: swapConfigured ? "ready" : "blocked",
+      description: "Authorizes the router to transfer COR from the connected wallet.",
+      ctaLabel: "Approve COR",
+      action: "SWAP_TOKENS",
+      parameters: swapConfigured
+        ? {
+            amount: swapAmount,
+            amountWei,
+            tokenIn: "COR",
+            tokenOut: "OKB",
+            contractAddress: activeContracts.quoteTokenAddress,
+            functionName: "approve",
+            requiresApproval: false,
+            approval: {
               tokenAddress: activeContracts.quoteTokenAddress,
               spenderAddress: activeContracts.swapRouterAddress,
-              amount: parsedAmount.toString(),
+              amount: amountWei,
+            },
+          }
+        : undefined,
+      blockers: swapConfigured ? [] : ["Swap router or COR token address is not configured."],
+    });
+
+    steps.push({
+      id: "swap-cor-to-okb",
+      title: `Swap ${swapAmount} COR for ${okbAmountOut} OKB`,
+      kind: "transaction",
+      status: swapConfigured ? "ready" : "blocked",
+      description: "Executes the router's fixed-rate COR-to-native swap after approval is granted.",
+      ctaLabel: "Swap COR to OKB",
+      action: "SWAP_TOKENS",
+      parameters: swapConfigured
+        ? {
+            amount: swapAmount,
+            amountWei,
+            tokenIn: "COR",
+            tokenOut: "OKB",
+            contractAddress: activeContracts.swapRouterAddress,
+            functionName: "swapTokensForNative",
+            value: "0",
+            requiresApproval: true,
+            approval: {
+              tokenAddress: activeContracts.quoteTokenAddress,
+              spenderAddress: activeContracts.swapRouterAddress,
+              amount: amountWei,
+            },
+          }
+        : undefined,
+      blockers: swapConfigured ? [] : ["Swap router or COR token address is not configured."],
+    });
+
+    recovery.push({
+      title: "If the reverse swap fails",
+      description: "Check that the wallet has enough COR, the router has native OKB liquidity, and the approval transaction was confirmed first.",
+      severity: "warning",
+    });
+  }
+
+  if (goal === "MINT_TROPHY") {
+    const soulboundConfigured = hasConfiguredAddress(activeContracts.soulboundAddress);
+
+    prerequisites.push({
+      id: "soulbound-config",
+      label: "Founder trophy contract configured",
+      status: soulboundConfigured ? "satisfied" : "required",
+      description: soulboundConfigured
+        ? "The founder trophy contract is configured for this chain."
+        : `Missing soulbound trophy address for ${activeContracts.chainName}. Configure NEXT_PUBLIC_XLAYER_SOULBOUND_ADDRESS or the chain-specific equivalent.`,
+    });
+
+    prerequisites.push({
+      id: "mint-value",
+      label: `${TROPHY_MINT_PRICE_OKB} OKB available for mint price`,
+      status: "warning",
+      description: `Minting the founder trophy requires ${TROPHY_MINT_PRICE_OKB} OKB plus extra gas.`,
+    });
+
+    steps.push({
+      id: "mint-trophy",
+      title: "Mint the founder trophy",
+      kind: "transaction",
+      status: soulboundConfigured ? "ready" : "blocked",
+      description: "Calls the soulbound founder trophy contract and pays the mint fee.",
+      ctaLabel: "Mint Trophy",
+      action: "MINT_TROPHY",
+      parameters: soulboundConfigured
+        ? {
+            contractAddress: activeContracts.soulboundAddress,
+            functionName: "mint",
+            value: parseEther(TROPHY_MINT_PRICE_OKB).toString(),
+          }
+        : undefined,
+      blockers: soulboundConfigured ? [] : ["Founder trophy contract address is not configured."],
+    });
+
+    recovery.push({
+      title: "If minting fails",
+      description: "Confirm the wallet still has enough OKB for the mint fee and that the trophy contract is deployed on the selected chain.",
+      severity: "warning",
+    });
+  }
+
+  if (goal === "EARN_AND_MINT") {
+    const faucetConfigured = hasConfiguredAddress(activeContracts.faucetAddress);
+    const routerConfigured =
+      hasConfiguredAddress(activeContracts.swapRouterAddress) && hasConfiguredAddress(activeContracts.quoteTokenAddress);
+    const soulboundConfigured = hasConfiguredAddress(activeContracts.soulboundAddress);
+    const prefersSwapPath = normalizedPrompt.includes("swap") || normalizedPrompt.includes("buy") || normalizedPrompt.includes("0.1 okb");
+    const swapAmount = extractAmount(prompt) ?? "0.1";
+    const corAmountOut = formatCorFromOkbInput(swapAmount);
+
+    prerequisites.push({
+      id: "onboarding-contracts",
+      label: "All onboarding contracts configured",
+      status: faucetConfigured && soulboundConfigured && (!prefersSwapPath || routerConfigured) ? "satisfied" : "required",
+      description: prefersSwapPath
+        ? "This goal depends on the COR faucet or swap router plus the founder trophy contract."
+        : "This goal depends on the COR faucet and founder trophy contract.",
+    });
+
+    prerequisites.push({
+      id: "journey-gas",
+      label: "Enough OKB for the full journey",
+      status: "warning",
+      description: `Keep enough OKB for gas and the ${TROPHY_MINT_PRICE_OKB} OKB trophy mint fee before walking through all steps.`,
+    });
+
+    if (faucetConfigured) {
+      steps.push({
+        id: "earn-claim-cor",
+        title: `Claim ${FAUCET_AMOUNT_COR} COR starter balance`,
+        kind: "transaction",
+        status: "ready",
+        description: "Starts the onboarding flow by claiming the fixed COR faucet drip.",
+        ctaLabel: "Claim Starter COR",
+        action: "CLAIM_FAUCET",
+        parameters: {
+          contractAddress: activeContracts.faucetAddress,
+          functionName: "requestTokens",
+        },
+      });
+    } else {
+      steps.push({
+        id: "earn-claim-cor",
+        title: `Claim ${FAUCET_AMOUNT_COR} COR starter balance`,
+        kind: "transaction",
+        status: "blocked",
+        description: "Starts the onboarding flow by claiming the fixed COR faucet drip.",
+        ctaLabel: "Claim Starter COR",
+        action: "CLAIM_FAUCET",
+        blockers: ["Faucet contract address is not configured for this chain."],
+      });
+    }
+
+    if (prefersSwapPath) {
+      steps.push({
+        id: "earn-swap-okb-to-cor",
+        title: `Optionally swap ${swapAmount} OKB for ${corAmountOut} COR`,
+        kind: routerConfigured ? "transaction" : "guidance",
+        status: routerConfigured ? "ready" : "blocked",
+        description: "Lets the user deepen their COR balance before minting the trophy.",
+        ctaLabel: routerConfigured ? "Swap OKB to COR" : undefined,
+        action: "SWAP_TOKENS",
+        parameters: routerConfigured
+          ? {
+              amount: corAmountOut,
+              amountWei: parseEther(corAmountOut).toString(),
+              tokenIn: "OKB",
+              tokenOut: "COR",
+              contractAddress: activeContracts.swapRouterAddress,
+              functionName: "swapNativeForExactTokens",
+              value: parseEther(swapAmount).toString(),
             }
           : undefined,
-      },
-      humanReadableSummary: `Preparing transaction to swap ${amount} ${tokenIn} for ${tokenOut} on chain ${chainId}.`,
-    };
+        blockers: routerConfigured ? [] : ["Swap router or COR token address is not configured."],
+      });
+    } else {
+      steps.push({
+        id: "earn-swap-okb-to-cor",
+        title: "Optional: buy more COR through the router",
+        kind: "guidance",
+        status: "advisory",
+        description: "If the user wants a larger COR balance, they can add an OKB-to-COR swap before minting.",
+        action: "UNKNOWN",
+      });
+    }
+
+    steps.push({
+      id: "earn-mint-trophy",
+      title: "Mint the founder trophy",
+      kind: "transaction",
+      status: soulboundConfigured ? "ready" : "blocked",
+      description: "Completes the onboarding flow by minting the founder trophy for the connected wallet.",
+      ctaLabel: "Mint Trophy",
+      action: "MINT_TROPHY",
+      parameters: soulboundConfigured
+        ? {
+            contractAddress: activeContracts.soulboundAddress,
+            functionName: "mint",
+            value: parseEther(TROPHY_MINT_PRICE_OKB).toString(),
+          }
+        : undefined,
+      blockers: soulboundConfigured ? [] : ["Founder trophy contract address is not configured."],
+    });
+
+    recovery.push({
+      title: "Recommended execution order",
+      description: "Claim COR first, optionally perform the swap, then mint the founder trophy after confirming enough OKB remains for the mint fee.",
+      severity: "info",
+    });
+
+    recovery.push({
+      title: "Handle partial completion safely",
+      description: "Each step should be confirmed in the wallet separately. If one step fails, the agent should leave the later steps available instead of retrying automatically.",
+      severity: "warning",
+    });
   }
 
   return {
-    status: "error",
-    action: "UNKNOWN",
-    humanReadableSummary:
-      "Could not classify the prompt into a supported on-chain action. Try minting a trophy, claiming the faucet, or swapping tokens.",
+    goal,
+    chainId,
+    chainName: activeContracts.chainName,
+    prompt,
+    summary: buildPlannerSummary(goal, steps),
+    prerequisites,
+    steps,
+    recovery,
   };
+}
+
+function inferGoal(prompt: string): IntentGoal {
+  if (looksLikeEarnAndMintIntent(prompt)) {
+    return "EARN_AND_MINT";
+  }
+
+  if (looksLikeMintTrophyIntent(prompt)) {
+    return "MINT_TROPHY";
+  }
+
+  if (looksLikeClaimFaucetIntent(prompt)) {
+    return "CLAIM_COR";
+  }
+
+  if (looksLikeSwapIntent(prompt)) {
+    return looksLikeReverseSwapIntent(prompt) ? "SWAP_COR_TO_OKB" : "SWAP_OKB_TO_COR";
+  }
+
+  return "UNKNOWN";
+}
+
+function buildPlannerSummary(goal: IntentGoal, steps: PlannerStep[]) {
+  const readySteps = steps.filter((step) => step.status === "ready").length;
+
+  if (goal === "CLAIM_COR") {
+    return `The Cortex agent prepared a faucet claim plan with ${readySteps} executable step${readySteps === 1 ? "" : "s"}.`;
+  }
+
+  if (goal === "SWAP_OKB_TO_COR") {
+    return `The Cortex agent prepared an OKB-to-COR swap plan with ${readySteps} executable step${readySteps === 1 ? "" : "s"}.`;
+  }
+
+  if (goal === "SWAP_COR_TO_OKB") {
+    return `The Cortex agent prepared a COR-to-OKB exit plan with approval and swap sequencing.`;
+  }
+
+  if (goal === "MINT_TROPHY") {
+    return `The Cortex agent prepared a founder trophy mint plan with ${readySteps} executable step${readySteps === 1 ? "" : "s"}.`;
+  }
+
+  if (goal === "EARN_AND_MINT") {
+    return "The Cortex agent prepared a broader onboarding journey that can chain COR acquisition and founder trophy minting one step at a time.";
+  }
+
+  return "The Cortex agent could not construct a supported plan.";
+}
+
+function mapGoalToPrimaryAction(goal: IntentGoal): IntentAction {
+  if (goal === "CLAIM_COR") {
+    return "CLAIM_FAUCET";
+  }
+
+  if (goal === "SWAP_OKB_TO_COR" || goal === "SWAP_COR_TO_OKB") {
+    return "SWAP_TOKENS";
+  }
+
+  if (goal === "MINT_TROPHY") {
+    return "MINT_TROPHY";
+  }
+
+  return "UNKNOWN";
 }
 
 function looksLikeMintTrophyIntent(prompt: string) {
@@ -200,6 +668,14 @@ function looksLikeClaimFaucetIntent(prompt: string) {
 
 function looksLikeSwapIntent(prompt: string) {
   return ACTION_KEYWORDS.swapTokens.some((keyword) => prompt.includes(keyword));
+}
+
+function looksLikeEarnAndMintIntent(prompt: string) {
+  return (
+    ACTION_KEYWORDS.goalEarnAndMint.some((keyword) => prompt.includes(keyword)) ||
+    ((prompt.includes("mint") || prompt.includes("trophy")) &&
+      (prompt.includes("claim") || prompt.includes("faucet") || prompt.includes("swap") || prompt.includes("get cor")))
+  );
 }
 
 function looksLikeReverseSwapIntent(prompt: string) {
@@ -227,3 +703,24 @@ function extractDestinationToken(prompt: string, supportedTokens: readonly strin
   const mentionedTokens = supportedTokens.filter((token) => upperPrompt.includes(token));
   return mentionedTokens.length > 1 ? mentionedTokens[1] : null;
 }
+
+function formatCorFromOkbInput(amount: string) {
+  const amountWei = parseEther(amount);
+  const corAmountWei = amountWei * COR_PER_OKB;
+  return formatTokenAmount(corAmountWei);
+}
+
+function formatOkbFromCorInput(amount: string) {
+  const corWei = parseEther(amount);
+  const okbWei = corWei / COR_PER_OKB;
+  return formatTokenAmount(okbWei, 6);
+}
+
+function formatTokenAmount(value: bigint, maxFractionDigits = 4) {
+  const whole = value / 10n ** 18n;
+  const fraction = (value % 10n ** 18n).toString().padStart(18, "0");
+  const trimmedFraction = fraction.replace(/0+$/, "").slice(0, maxFractionDigits);
+  return trimmedFraction.length > 0 ? `${whole.toString()}.${trimmedFraction}` : whole.toString();
+}
+
+export { extractAmount, extractDestinationToken, extractToken };

@@ -1,12 +1,13 @@
 "use client";
 
-import { Loader2, Wallet } from "lucide-react";
+import { Loader2, RefreshCw, Wallet } from "lucide-react";
 import { type ChangeEvent, useMemo, useState } from "react";
 import { BaseError, formatEther, parseAbi, parseEther, type Hex } from "viem";
 import {
   useAccount,
   useBalance,
   usePublicClient,
+  useReadContract,
   useWaitForTransactionReceipt,
   useWriteContract,
 } from "wagmi";
@@ -41,6 +42,17 @@ function formatBalance(value?: bigint) {
   });
 }
 
+function formatQuote(value?: bigint, minimumFractionDigits = 4, maximumFractionDigits = 4) {
+  if (value === undefined) {
+    return "0.0000";
+  }
+
+  return Number(formatEther(value)).toLocaleString(undefined, {
+    minimumFractionDigits,
+    maximumFractionDigits,
+  });
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof BaseError) {
     return error.shortMessage || error.message;
@@ -58,6 +70,7 @@ export function SwapCard() {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusTone, setStatusTone] = useState<"idle" | "success" | "error">("idle");
   const [submittedHash, setSubmittedHash] = useState<Hex | undefined>();
+  const [swapPhase, setSwapPhase] = useState<"idle" | "submitting" | "approving">("idle");
   const [isReverse, setIsReverse] = useState(false);
   const { address, chainId } = useAccount();
   const { writeContractAsync } = useWriteContract();
@@ -126,7 +139,7 @@ export function SwapCard() {
 
     if (isReceiptSuccess) {
       return {
-        message: "Transaction Confirmed Successfully!",
+        message: "Reward redemption confirmed successfully.",
         tone: "success" as const,
       };
     }
@@ -152,23 +165,31 @@ export function SwapCard() {
     }
   }, [amountIn]);
 
+  const {
+    data: quotedAmountOut,
+    isLoading: isQuoteLoading,
+    refetch: refetchQuote,
+  } = useReadContract({
+    address: isSwapConfigured ? (swapRouterAddress as `0x${string}`) : undefined,
+    abi: SWAP_ROUTER_ABI,
+    functionName: isReverse ? "getTokenToNativeQuote" : "getNativeToTokenQuote",
+    args: parsedAmountIn !== undefined ? [parsedAmountIn] : undefined,
+    query: {
+      enabled: isSwapConfigured && parsedAmountIn !== undefined && parsedAmountIn > 0n,
+    },
+  });
+
   const amountOutPreview = useMemo(() => {
     if (amountIn.trim().length === 0 || parsedAmountIn === undefined) {
       return "0.0000";
     }
 
-    if (!isReverse) {
-      return Number(formatEther(parsedAmountIn * BigInt(100000))).toLocaleString(undefined, {
-        minimumFractionDigits: 4,
-        maximumFractionDigits: 4,
-      });
+    if (quotedAmountOut === undefined) {
+      return "0.0000";
     }
 
-    return Number(formatEther(parsedAmountIn / BigInt(100000))).toLocaleString(undefined, {
-      minimumFractionDigits: 6,
-      maximumFractionDigits: 6,
-    });
-  }, [isReverse, parsedAmountIn, amountIn]);
+    return formatQuote(quotedAmountOut, isReverse ? 6 : 4, isReverse ? 6 : 4);
+  }, [amountIn, isReverse, parsedAmountIn, quotedAmountOut]);
 
   const statusClassName = useMemo(() => {
     if (displayedStatusTone === "success") {
@@ -182,11 +203,18 @@ export function SwapCard() {
     return "border-zinc-200 bg-zinc-100 text-zinc-600";
   }, [displayedStatusTone]);
 
-  const isPending = isReceiptPending;
+  const isPending = isReceiptPending || swapPhase !== "idle";
+  const isRefreshingBalances = isFetchingNativeBalance || isFetchingQuoteTokenBalance || isQuoteLoading;
   const hasInsufficientNativeBalance =
-    parsedAmountIn !== undefined
+    !isReverse
+    && parsedAmountIn !== undefined
     && nativeBalance?.value !== undefined
     && parsedAmountIn > nativeBalance.value;
+  const hasInsufficientQuoteTokenBalance =
+    isReverse
+    && parsedAmountIn !== undefined
+    && quoteTokenBalance?.value !== undefined
+    && parsedAmountIn > quoteTokenBalance.value;
   const isButtonDisabled =
     !address
     || !isSupportedChain
@@ -194,11 +222,13 @@ export function SwapCard() {
     || parsedAmountIn === undefined
     || parsedAmountIn <= BigInt(0)
     || hasInsufficientNativeBalance
+    || hasInsufficientQuoteTokenBalance
+    || !quotedAmountOut
     || isPending;
 
   async function handleConfirmSwap() {
     if (!address) {
-      setStatusMessage("Connect a wallet before swapping.");
+      setStatusMessage("Connect a wallet before redeeming rewards.");
       setStatusTone("error");
       return;
     }
@@ -215,14 +245,20 @@ export function SwapCard() {
       return;
     }
 
+    if (parsedAmountIn === undefined || parsedAmountIn <= 0n || quotedAmountOut === undefined) {
+      setStatusMessage("Enter a valid reward amount so the router can return a live quote.");
+      setStatusTone("error");
+      return;
+    }
+
     try {
       const parsedAmount = parseEther(amountIn);
+      setSwapPhase(!isReverse ? "submitting" : "approving");
       setSubmittedHash(undefined);
       setStatusMessage("Waiting for blockchain confirmation...");
       setStatusTone("idle");
 
       if (!isReverse) {
-        const quotedAmountOut = parsedAmount * BigInt(100000);
         const hash = await writeContractAsync({
           address: swapRouterAddress as `0x${string}`,
           abi: SWAP_ROUTER_ABI,
@@ -244,6 +280,7 @@ export function SwapCard() {
         await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
         void refetchQuoteTokenBalance();
 
+        setSwapPhase("submitting");
         const swapHash = await writeContractAsync({
           address: swapRouterAddress as `0x${string}`,
           abi: SWAP_TOKENS_FOR_NATIVE_ABI,
@@ -258,6 +295,8 @@ export function SwapCard() {
     } catch (error) {
       setStatusMessage(`Transaction Failed: ${getErrorMessage(error)}`);
       setStatusTone("error");
+    } finally {
+      setSwapPhase("idle");
     }
   }
 
@@ -270,40 +309,28 @@ export function SwapCard() {
       <div className="mb-7 flex items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-[-0.04em] text-[#f3f6f0] sm:text-[30px]">
-            Cortex Swap Router
+            Reward Redemption Router
           </h2>
+          <p className="mt-1 text-sm text-[#9ca59a]">
+            Swap prediction rewards into COR or native OKB with live quotes and onchain execution.
+          </p>
         </div>
         <button
           type="button"
           onClick={() => {
             void refetchNativeBalance();
             void refetchQuoteTokenBalance();
+            void refetchQuote();
           }}
+          disabled={isRefreshingBalances}
           className="inline-flex items-center gap-2 rounded-2xl border border-[#243126] bg-[#111713] px-4 py-3 text-sm font-semibold text-[#d8ddd5] transition hover:border-[#315237] hover:text-white"
         >
-          <RefreshIcon />
-          Refresh
+          <RefreshCw className={`size-4 ${isRefreshingBalances ? "animate-spin" : ""}`} />
+          {isRefreshingBalances ? "Refreshing..." : "Refresh"}
         </button>
       </div>
 
       <div className="space-y-7">
-        <div className="flex justify-center">
-          <div className="inline-flex rounded-[22px] border border-[#1d281f] bg-[#152016] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-            <button
-              type="button"
-              className="rounded-[16px] bg-[#283728] px-8 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(0,0,0,0.22)] transition hover:brightness-110"
-            >
-              COR Markets
-            </button>
-            <button
-              type="button"
-              className="rounded-[16px] px-8 py-3 text-sm font-semibold text-[#9ca59a] transition hover:text-white"
-            >
-              NFT Vaults
-            </button>
-          </div>
-        </div>
-
         <TokenCard
           label={isReverse ? "You Pay" : "You Pay"}
           amount={amountIn}
@@ -331,7 +358,7 @@ export function SwapCard() {
           balance={`Balance: ${formatBalance(isReverse ? nativeBalance?.value : quoteTokenBalance?.value)} ${isReverse ? "OKB" : "COR"}`}
           token={isReverse ? "OKB" : "COR"}
           tone="dark"
-          isLoading={isReverse ? isFetchingNativeBalance : isFetchingQuoteTokenBalance}
+          isLoading={isReverse ? isFetchingNativeBalance || isQuoteLoading : isFetchingQuoteTokenBalance || isQuoteLoading}
           readOnly
         />
 
@@ -339,9 +366,9 @@ export function SwapCard() {
           <div className="flex items-center gap-4">
             <Wallet className="size-5 shrink-0 stroke-[2] text-[#86d7a2]" />
             <div>
-              <div className="text-sm font-semibold text-[#e7ece5]">Router</div>
+              <div className="text-sm font-semibold text-[#e7ece5]">X Layer Execution Rail</div>
               <div className="text-sm text-[#9ca59a]">
-                 swap at 1 OKB = 100,000 COR
+                Live router quote and reward execution surfaced directly from the deployed contract.
               </div>
             </div>
           </div>
@@ -359,12 +386,16 @@ export function SwapCard() {
           {isPending ? (
             <>
               <Loader2 className="size-5 animate-spin" />
-              Confirming...
+              {swapPhase === "approving"
+                ? "Approving..."
+                : swapPhase === "submitting"
+                  ? "Opening wallet..."
+                  : "Confirming..."}
             </>
           ) : (
             <>
               <Loader2 className="size-5 opacity-0" />
-              Confirm Swap
+              Redeem Reward
             </>
           )}
         </button>
@@ -448,30 +479,6 @@ function TokenCard({
         </div>
       </div>
     </div>
-  );
-}
-
-function RefreshIcon() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className="size-6"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="M20 11a8 8 0 1 0 2.3 5.7" />
-      <path d="M20 4v7h-7" />
-      <animateTransform
-        attributeName="transform"
-        attributeType="XML"
-        type="rotate"
-        from="0 12 12"
-        to="360 12 12"
-        dur="1.3s"
-        repeatCount="indefinite"
-      />
-    </svg>
   );
 }
 

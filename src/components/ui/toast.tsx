@@ -11,8 +11,14 @@ type Toast = {
   tone: ToastTone;
 };
 
+type AlertState = {
+  message: string;
+  tone: ToastTone;
+};
+
 type ToastContextValue = {
   showToast: (message: string, tone?: ToastTone) => void;
+  showAlert: (message: string, tone?: ToastTone) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | null>(null);
@@ -35,6 +41,7 @@ type ToastProviderProps = {
 
 export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [alert, setAlert] = useState<AlertState | null>(null);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((current) => current.filter((toast) => toast.id !== id));
@@ -50,16 +57,52 @@ export function ToastProvider({ children }: ToastProviderProps) {
     }, 3600);
   }, []);
 
+  const showAlert = useCallback((message: string, tone: ToastTone = "info") => {
+    setAlert({ message, tone });
+  }, []);
+
+  const dismissAlert = useCallback(() => {
+    setAlert(null);
+  }, []);
+
   const contextValue = useMemo(
     () => ({
       showToast,
+      showAlert,
     }),
-    [showToast],
+    [showAlert, showToast],
   );
 
   return (
     <ToastContext.Provider value={contextValue}>
       {children}
+
+      {alert ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cortex-alert-title"
+            aria-describedby="cortex-alert-description"
+            className={`w-full max-w-md rounded-[28px] border px-6 py-6 shadow-[0_30px_80px_rgba(0,0,0,0.55)] ${toneStyles[alert.tone]}`}
+          >
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/55" id="cortex-alert-title">
+              Admin notice
+            </div>
+            <p className="mt-3 text-base leading-7" id="cortex-alert-description">
+              {alert.message}
+            </p>
+            <button
+              type="button"
+              onClick={dismissAlert}
+              className="mt-6 inline-flex w-full items-center justify-center rounded-2xl border border-[#24432b] bg-[linear-gradient(90deg,#61f58f_0%,#d9f06c_100%)] px-5 py-3.5 text-sm font-semibold text-[#071108] transition hover:brightness-105"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <div className="pointer-events-none fixed right-4 top-4 z-[120] flex w-[min(100%-2rem,380px)] flex-col gap-3 sm:right-6 sm:top-6">
         {toasts.map((toast) => {
           const Icon = toneIcons[toast.tone];

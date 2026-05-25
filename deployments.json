@@ -3,12 +3,42 @@
   "deployer": "0xa15F501edB3F7C6873f00834a60Ea07449f1c16B",
   "quoteToken": "0xEc290b02308137341bfe1E268B1C32F75971e2E4",
   "faucet": "0x2C379629c667103e6F4D9c486b9B8C424ed9B1E8",
-  "nftCollection": "0x17f91CD9E81886c4e02CA0fFdfC7072F53227c9A",
-  "marketplace": "0xECFe7BcD63Bf11f9124cd194F444eE58AD3Acb42",
-  "swapRouter": "0x75aA4D25AC18a8E348a4C99d05B41767271D39f9",
-  "mintedTokenIds": [
+  "marketplace": "0x1cb7CB4aF363f7580FF49307d2281fF32dF56e53",
+  "swapRouter": "0xED1eFd9a3AA4AF4524eC7623678CeAAbc6e1732f",
+  "soulbound": "0x3D39b07817508E329956B97C9e2a2b4d8D51d456",
+  "fundedRewardPool": "750000000000000000000000",
+  "routerFundingAmount": "500000000000000000000000",
+  "faucetFundingAmount": "250000000000000000000000",
+  "createdMatchIds": [
     1,
-    2,
-    3
+    2
+  ],
+  "seededMatches": [
+    {
+      "matchId": 1,
+      "slug": "brazil-vs-france-semi",
+      "title": "Brazil vs France — Semifinal Winner",
+      "options": [
+        "Brazil",
+        "France"
+      ],
+      "entryPrice": "10000000000000000000",
+      "rewardAmount": "18000000000000000000",
+      "opensAt": 1779565264,
+      "closesAt": 1779651964
+    },
+    {
+      "matchId": 2,
+      "slug": "argentina-vs-spain-final",
+      "title": "Argentina vs Spain — Final Winner",
+      "options": [
+        "Argentina",
+        "Spain"
+      ],
+      "entryPrice": "12000000000000000000",
+      "rewardAmount": "22000000000000000000",
+      "opensAt": 1779565264,
+      "closesAt": 1779738364
+    }
   ]
 }
