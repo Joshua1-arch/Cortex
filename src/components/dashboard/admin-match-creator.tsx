@@ -87,8 +87,8 @@ type AdminFormState = {
   teamBFlagUri: string;
   teamA: string;
   teamB: string;
-  teamAEntryPrice: string;
-  teamBEntryPrice: string;
+  entryPrice: string;
+  rewardAmount: string;
   drawEntryPrice: string;
   opensAt: string;
   closesAt: string;
@@ -131,8 +131,8 @@ const defaultFormState: AdminFormState = {
   teamBFlagUri: "https://images.unsplash.com/photo-1527866512907-e31b9d0dd7b0?auto=format&fit=crop&w=1200&q=80",
   teamA: "Brazil",
   teamB: "France",
-  teamAEntryPrice: "10",
-  teamBEntryPrice: "10",
+  entryPrice: "10",
+  rewardAmount: "10",
   drawEntryPrice: "2",
   opensAt: "",
   closesAt: "",
@@ -193,15 +193,6 @@ function syncTitleFromTeams(teamA: string, teamB: string, currentTitle: string) 
   const suffix = suffixMatch ? ` - ${suffixMatch[1]}` : " - Winner";
 
   return `${normalizedTeamA} vs ${normalizedTeamB}${suffix}`;
-}
-
-function toDateTimeLocalValue(date: Date) {
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 function createMetadataUri({
@@ -370,9 +361,7 @@ export function AdminMatchCreator() {
     const description = formState.description.trim();
     const teamAFlagUri = formState.teamAFlagUri.trim();
     const teamBFlagUri = formState.teamBFlagUri.trim();
-    const options = [formState.teamA.trim(), formState.teamB.trim(), "Draw"].filter(
-      (option, index) => index === 2 || Boolean(option),
-    );
+    const options = [formState.teamA.trim(), formState.teamB.trim()].filter(Boolean);
     const opensAt = toUnixTimestamp(formState.opensAt);
     const closesAt = toUnixTimestamp(formState.closesAt);
     const metadataUri = createMetadataUri({
@@ -382,9 +371,8 @@ export function AdminMatchCreator() {
       teamBImage: teamBFlagUri,
       drawMintAmount: formState.drawEntryPrice.trim(),
     });
-    const entryPrice = parseEther(formState.teamAEntryPrice || "0");
-    const rewardAmount = parseEther(formState.teamBEntryPrice || "0");
-    const drawAmount = parseEther(formState.drawEntryPrice || "0");
+    const entryPrice = parseEther(formState.entryPrice || "0");
+    const rewardAmount = parseEther(formState.rewardAmount || "0");
 
     if (!slug || !title || !description || !teamAFlagUri || !teamBFlagUri || options.length < 2 || !metadataUri) {
       showAlert("Fill in slug, title, description, both teams, and both flag images before creating the match.", "error");
@@ -396,8 +384,8 @@ export function AdminMatchCreator() {
       return;
     }
 
-    if (entryPrice <= 0n || rewardAmount <= 0n || drawAmount < 0n) {
-      showAlert("Team mint amounts must be greater than zero.", "error");
+    if (entryPrice <= 0n || rewardAmount <= 0n) {
+      showAlert("Entry price and reward amount must be greater than zero.", "error");
       return;
     }
 
@@ -419,7 +407,6 @@ export function AdminMatchCreator() {
         options,
         entryPrice: entryPrice.toString(),
         rewardAmount: rewardAmount.toString(),
-        drawAmount: drawAmount.toString(),
         opensAt: opensAt.toString(),
         closesAt: closesAt.toString(),
         openImmediately: formState.openImmediately,
@@ -564,27 +551,27 @@ export function AdminMatchCreator() {
 
                 <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <label className="grid gap-2 rounded-2xl border border-[#1f2c20] bg-[#101512] p-4">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Team A mint amount</span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Onchain entry price</span>
                     <input
-                      value={formState.teamAEntryPrice}
-                      onChange={(event) => setFormState((current) => ({ ...current, teamAEntryPrice: event.target.value }))}
+                      value={formState.entryPrice}
+                      onChange={(event) => setFormState((current) => ({ ...current, entryPrice: event.target.value }))}
                       className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-3 text-sm text-[#f2f5ef] outline-none transition focus:border-[#61f58f]"
                       placeholder="10"
                     />
                   </label>
 
                   <label className="grid gap-2 rounded-2xl border border-[#1f2c20] bg-[#101512] p-4">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Team B mint amount</span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Onchain reward amount</span>
                     <input
-                      value={formState.teamBEntryPrice}
-                      onChange={(event) => setFormState((current) => ({ ...current, teamBEntryPrice: event.target.value }))}
+                      value={formState.rewardAmount}
+                      onChange={(event) => setFormState((current) => ({ ...current, rewardAmount: event.target.value }))}
                       className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-3 text-sm text-[#f2f5ef] outline-none transition focus:border-[#61f58f]"
                       placeholder="10"
                     />
                   </label>
 
                   <label className="grid gap-2 rounded-2xl border border-[#1f2c20] bg-[#101512] p-4">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Draw mint amount</span>
+                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Draw display amount</span>
                     <input
                       value={formState.drawEntryPrice}
                       onChange={(event) => setFormState((current) => ({ ...current, drawEntryPrice: event.target.value }))}
@@ -608,25 +595,13 @@ export function AdminMatchCreator() {
                 </label>
 
                 <div className="grid gap-4">
-                  <label className="grid gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Team A flag preview URI</span>
-                    <input
-                      value={formState.teamAFlagUri}
-                      onChange={(event) => setFormState((current) => ({ ...current, teamAFlagUri: event.target.value }))}
-                      className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-3 text-sm text-[#f2f5ef] outline-none transition focus:border-[#61f58f]"
-                      placeholder="https://... or ipfs://..."
-                    />
-                  </label>
-
-                  <label className="grid gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-[0.14em] text-[#8f9b8e]">Team B flag preview URI</span>
-                    <input
-                      value={formState.teamBFlagUri}
-                      onChange={(event) => setFormState((current) => ({ ...current, teamBFlagUri: event.target.value }))}
-                      className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-3 text-sm text-[#f2f5ef] outline-none transition focus:border-[#61f58f]"
-                      placeholder="https://... or ipfs://..."
-                    />
-                  </label>
+                  <div className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-4 text-sm leading-6 text-[#b9c4b8]">
+                    <div className="font-semibold text-[#f1f1ea]">Contract-safe metadata preview</div>
+                    <p className="mt-2">
+                      The onchain match uses one real entry price, one real reward amount, and one primary image URI.
+                      Team B flag and draw amount remain display metadata for the preview and NFT market.
+                    </p>
+                  </div>
                 </div>
 
                 <label className="grid gap-2 md:col-span-2">
@@ -694,9 +669,9 @@ export function AdminMatchCreator() {
             teamAFlagUri={formState.teamAFlagUri}
             teamBFlagUri={formState.teamBFlagUri}
             mintSlots={[
-              { id: "team-a", label: "Team A mint", amount: formState.teamAEntryPrice || "0" },
-              { id: "draw", label: "Draw mint", amount: formState.drawEntryPrice || "0" },
-              { id: "team-b", label: "Team B mint", amount: formState.teamBEntryPrice || "0" },
+              { id: "team-a", label: "Entry price", amount: formState.entryPrice || "0" },
+              { id: "draw", label: "Draw display", amount: formState.drawEntryPrice || "0" },
+              { id: "team-b", label: "Reward amount", amount: formState.rewardAmount || "0" },
             ] satisfies MintSlot[]}
             showMetadata
             metadataUri={preview.metadataUri}

@@ -18,10 +18,6 @@ const soulboundAbi = [
   },
 ] as const;
 
-function SoulboundBannerSkeleton() {
-  return <div className="h-[220px] animate-pulse rounded-[28px] border border-[#2c3a2f] bg-[#121814]" />;
-}
-
 function TrophySoulboundArt() {
   return (
     <div className="relative mx-auto flex h-[168px] w-[132px] items-end justify-center">

@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatEther, parseEther } from "viem";
-import { useAccount, useReadContract, useReadContracts, useWriteContract } from "wagmi";
+import { formatEther } from "viem";
+import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
 import { MatchPredictionPreview, type MintSlot } from "@/components/dashboard/match-prediction-preview";
 import { getContractsForChain, hasConfiguredAddress } from "@/lib/contracts";
 
 const marketCategories = ["Live", "Minted", "Resolved", "Rewards"] as const;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
-const XLAYER_TESTNET_CHAIN_ID = 1952;
+const SUPPORTED_CHAIN_IDS = new Set([1952, 11155111] as const);
 
 const erc20Abi = [
   {
@@ -148,12 +148,10 @@ type PredictionCard = {
   title: string;
   description: string;
   listedPrice: bigint;
-  teamBMintPrice: bigint;
   rewardAmount: bigint;
   rewardAssetSymbol: string;
   metadataUri: string;
   drawMintAmount: string;
-  drawMintPrice: bigint;
   matchStatus: MatchState;
   outcomeLabel: string;
   rewardLabel: string;
@@ -192,7 +190,7 @@ type MatchTuple = {
   imageUri: string;
   rewardAssetSymbol: string;
   metadataUri: string;
-  options: string[];
+  options: readonly string[];
 };
 
 type PredictionTuple = {
@@ -324,31 +322,7 @@ function PredictionCardSkeleton() {
   );
 }
 
-function parseDrawMintPrice(drawMintAmount: string) {
-  if (!drawMintAmount || drawMintAmount === "—") {
-    return 0n;
-  }
-
-  try {
-    return parseEther(drawMintAmount);
-  } catch {
-    return 0n;
-  }
-}
-
-function getMintPriceForOption(card: PredictionCard, optionIndex: number) {
-  if (optionIndex === 0) {
-    return card.listedPrice;
-  }
-
-  if (optionIndex === 1) {
-    return card.teamBMintPrice;
-  }
-
-  if (optionIndex === 2) {
-    return card.drawMintPrice > 0n ? card.drawMintPrice : card.listedPrice;
-  }
-
+function getMintPriceForOption(card: PredictionCard) {
   return card.listedPrice;
 }
 
@@ -358,25 +332,39 @@ type MintChoice = {
   price: bigint;
 };
 
+function hasDrawMint(card: PredictionCard) {
+  return card.options.some((option) => option.trim().toLowerCase() === "draw") ||
+    (card.drawMintAmount && card.drawMintAmount !== "—");
+}
+
 function getMintChoices(card: PredictionCard, teamA: string, teamB: string): MintChoice[] {
-  const drawOptionIndex = card.options.findIndex(
-    (option) => option.trim().toLowerCase() === "draw",
-  );
-  const hasDrawOption = drawOptionIndex >= 0;
-  const drawIndex = hasDrawOption ? drawOptionIndex : 2;
-  const showDraw = hasDrawOption || card.drawMintPrice > 0n;
+  const normalizedOptions = card.options.map((option) => option.trim().toLowerCase());
+  const teamAOptionIndex = normalizedOptions.findIndex((option) => option === teamA.trim().toLowerCase());
+  const teamBOptionIndex = normalizedOptions.findIndex((option) => option === teamB.trim().toLowerCase());
+  const drawOptionIndex = normalizedOptions.findIndex((option) => option === "draw");
 
-  const choices: MintChoice[] = [{ label: teamA, optionIndex: 0, price: getMintPriceForOption(card, 0) }];
+  const resolvedTeamAIndex = teamAOptionIndex >= 0 ? teamAOptionIndex : 0;
+  const resolvedDrawIndex = drawOptionIndex >= 0 ? drawOptionIndex : 2;
+  const resolvedTeamBIndex =
+    teamBOptionIndex >= 0
+      ? teamBOptionIndex
+      : resolvedDrawIndex === 1
+        ? 2
+        : 1;
 
-  if (showDraw) {
+  const choices: MintChoice[] = [
+    { label: teamA, optionIndex: resolvedTeamAIndex, price: getMintPriceForOption(card) },
+  ];
+
+  if (hasDrawMint(card)) {
     choices.push({
-      label: card.options[drawIndex] ?? "Draw",
-      optionIndex: drawIndex,
-      price: getMintPriceForOption(card, drawIndex),
+      label: card.options[drawOptionIndex] ?? "Draw",
+      optionIndex: resolvedDrawIndex,
+      price: getMintPriceForOption(card),
     });
   }
 
-  choices.push({ label: teamB, optionIndex: 1, price: getMintPriceForOption(card, 1) });
+  choices.push({ label: teamB, optionIndex: resolvedTeamBIndex, price: getMintPriceForOption(card) });
 
   return choices;
 }
@@ -394,7 +382,7 @@ function isDrawMintDisabled(card: PredictionCard, choice: MintChoice) {
     return false;
   }
 
-  return card.drawMintPrice === 0n && !card.options.some((option) => option.trim().toLowerCase() === "draw");
+  return !hasDrawMint(card);
 }
 
 function getMintSlotLabel(choice: MintChoice) {
@@ -410,9 +398,11 @@ function getMintSlotLabel(choice: MintChoice) {
 }
 
 export function NFTMarket() {
-  const { address } = useAccount();
+  const { address, chainId } = useAccount();
   const { writeContractAsync, isPending } = useWriteContract();
-  const activeContracts = getContractsForChain(XLAYER_TESTNET_CHAIN_ID);
+  const isSupportedChain = chainId !== undefined && SUPPORTED_CHAIN_IDS.has(chainId as 1952 | 11155111);
+  const activeChainId = isSupportedChain ? chainId : 1952;
+  const activeContracts = getContractsForChain(activeChainId);
   const marketplaceAddress =
     (activeContracts.marketplaceAddress && hasConfiguredAddress(activeContracts.marketplaceAddress)
       ? activeContracts.marketplaceAddress
@@ -430,6 +420,8 @@ export function NFTMarket() {
   const [metadataLoading, setMetadataLoading] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
   const [feedbackTone, setFeedbackTone] = useState<"error" | "success" | null>(null);
+
+  const publicClient = usePublicClient();
 
   const { data: ownerAddress } = useReadContract({
     address: isMarketplaceConfigured ? marketplaceAddress : undefined,
@@ -458,12 +450,15 @@ export function NFTMarket() {
     () =>
       isMarketplaceConfigured
         ? matchIds.map((matchId) => ({
-            address: marketplaceAddress,
+            address: marketplaceAddress!,
             abi: marketplaceAbi,
             functionName: "getMatch" as const,
             args: [matchId] as const,
           }))
         : [],
+    // `marketplaceAddress` is already gated by `isMarketplaceConfigured`; including it
+    // trips react-compiler preservation on this stable contract descriptor list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [isMarketplaceConfigured, matchIds],
   );
 
@@ -471,12 +466,15 @@ export function NFTMarket() {
     () =>
       isMarketplaceConfigured && address
         ? matchIds.map((matchId) => ({
-            address: marketplaceAddress,
+            address: marketplaceAddress!,
             abi: marketplaceAbi,
             functionName: "getPrediction" as const,
             args: [address, matchId] as const,
           }))
         : [],
+    // `marketplaceAddress` is already gated by `isMarketplaceConfigured`; including it
+    // trips react-compiler preservation on this stable contract descriptor list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [address, isMarketplaceConfigured, matchIds],
   );
 
@@ -484,12 +482,15 @@ export function NFTMarket() {
     () =>
       isMarketplaceConfigured && address
         ? matchIds.map((matchId) => ({
-            address: marketplaceAddress,
+            address: marketplaceAddress!,
             abi: marketplaceAbi,
             functionName: "getClaimableReward" as const,
             args: [address, matchId] as const,
           }))
         : [],
+    // `marketplaceAddress` is already gated by `isMarketplaceConfigured`; including it
+    // trips react-compiler preservation on this stable contract descriptor list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [address, isMarketplaceConfigured, matchIds],
   );
 
@@ -584,21 +585,19 @@ export function NFTMarket() {
                 teamAFlagUri: metadata?.image ? ipfsToHttp(metadata.image) : ipfsToHttp(matchConfig.imageUri),
                 teamBFlagUri: metadata?.teamBImage ?? "",
                 drawMintAmount: metadata?.drawMintAmount ?? "—",
-                drawMintPrice: parseDrawMintPrice(metadata?.drawMintAmount ?? ""),
                 title: metadata?.name && metadata.name !== "Admin Match NFT" ? metadata.name : matchConfig.title,
                 description:
                   metadata?.description && metadata.description !== "No description provided."
                     ? metadata.description
                     : matchConfig.description,
                 listedPrice: matchConfig.entryPrice,
-                teamBMintPrice: matchConfig.rewardAmount,
                 rewardAmount: matchConfig.rewardAmount,
                 rewardAssetSymbol: matchConfig.rewardAssetSymbol,
                 metadataUri: matchConfig.metadataUri,
                 matchStatus,
                 outcomeLabel: matchConfig.options.join(" vs "),
                 rewardLabel: `Reward paid in ${matchConfig.rewardAssetSymbol}`,
-                options: matchConfig.options,
+                options: [...matchConfig.options],
                 totalMints: matchConfig.totalMints,
                 winningMints: matchConfig.winningMints,
                 opensAt: matchConfig.opensAt,
@@ -633,18 +632,16 @@ export function NFTMarket() {
                   teamAFlagUri: ipfsToHttp(matchConfig.imageUri),
                   teamBFlagUri: "",
                   drawMintAmount: "—",
-                  drawMintPrice: 0n,
                   title: matchConfig.title,
                   description: matchConfig.description,
                   listedPrice: matchConfig.entryPrice,
-                  teamBMintPrice: matchConfig.rewardAmount,
                   rewardAmount: matchConfig.rewardAmount,
                   rewardAssetSymbol: matchConfig.rewardAssetSymbol,
                   metadataUri: matchConfig.metadataUri,
                   matchStatus,
                   outcomeLabel: matchConfig.options.join(" vs "),
                   rewardLabel: `Reward paid in ${matchConfig.rewardAssetSymbol}`,
-                  options: matchConfig.options,
+                  options: [...matchConfig.options],
                   totalMints: matchConfig.totalMints,
                   winningMints: matchConfig.winningMints,
                   opensAt: matchConfig.opensAt,
@@ -673,6 +670,8 @@ export function NFTMarket() {
       cancelled = true;
     };
   }, [claimableRewards, matches, predictions]);
+
+  const chainLabel = isSupportedChain ? activeContracts.chainName : "Unsupported wallet network";
 
   const isLoading =
     !isMarketplaceConfigured ||
@@ -729,12 +728,14 @@ export function NFTMarket() {
       setFeedbackTone(null);
       setTxState({ matchId, action: "approve" });
 
-      await writeContractAsync({
+      const approvalHash = await writeContractAsync({
         address: quoteTokenAddress,
         abi: erc20Abi,
         functionName: "approve",
         args: [marketplaceAddress, entryPrice],
       });
+
+      await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
 
       setTxState({ matchId, action: "mint" });
       await writeContractAsync({
@@ -799,10 +800,16 @@ export function NFTMarket() {
             type="button"
             className="inline-flex items-center justify-between gap-3 rounded-2xl border border-[#283127] bg-[#151c15] px-5 py-3 font-mono text-sm text-[#d8dad4] lg:min-w-[220px]"
           >
-            <span>{isAdmin ? "Admin wallet connected" : "Live on X Layer"}</span>
+            <span>{isAdmin ? `Admin wallet connected • ${chainLabel}` : chainLabel}</span>
             <span className="text-[#9fa39b]">⌄</span>
           </button>
         </div>
+
+        {!isSupportedChain && address ? (
+          <div className="rounded-[24px] border border-[#57451b] bg-[linear-gradient(180deg,#161206_0%,#0d0b05_100%)] p-6 text-sm text-[#f0efe6]">
+            Switch your wallet to X Layer Testnet or Ethereum Sepolia to load the configured match market.
+          </div>
+        ) : null}
 
         {!isMarketplaceConfigured ? (
           <div className="rounded-[24px] border border-[#57451b] bg-[linear-gradient(180deg,#161206_0%,#0d0b05_100%)] p-6 text-sm text-[#f0efe6]">
@@ -840,76 +847,76 @@ export function NFTMarket() {
                   amount: formatMintSlotAmount(card, choice),
                   onClick:
                     canMint && !drawDisabled
-                      ? () => void handleMintPrediction(card.matchId, choice.optionIndex, card.listedPrice)
+                      ? () => void handleMintPrediction(card.matchId, choice.optionIndex, choice.price)
                       : undefined,
                   disabled:
-                    drawDisabled || !isMarketplaceConfigured || !isQuoteTokenConfigured || txBusy,
+                    drawDisabled || !isSupportedChain || !isMarketplaceConfigured || !isQuoteTokenConfigured || txBusy,
                   loading: isCardBusy && (isMintingPrediction || isApproving),
                 };
               });
 
               return (
                 <div key={card.id} className="min-w-0">
-                <MatchPredictionPreview
-                  label={`Match #${card.matchId.toString()} • ${card.matchStatus.toUpperCase()}`}
-                  teamA={teamA}
-                  teamB={teamB}
-                  teamAFlagUri={card.teamAFlagUri}
-                  teamBFlagUri={card.teamBFlagUri}
-                  mintSlots={mintSlots}
-                  rewardAssetSymbol={card.rewardAssetSymbol || "COR"}
-                  footer={
-                    <>
-                      <div className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-3 text-sm text-[#c6c8c2]">
-                        <div className="font-medium text-[#f1f1ea]">{card.title}</div>
-                        <p className="mt-2 leading-6">{card.description}</p>
-                        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs">
-                          <div>
-                            Opens: <span className="font-mono text-[#e8e8de]">{formatDate(card.opensAt)}</span>
-                          </div>
-                          <div>
-                            Closes: <span className="font-mono text-[#e8e8de]">{formatDate(card.closesAt)}</span>
-                          </div>
-                          <div>
-                            Total mints: <span className="font-mono text-[#e8e8de]">{card.totalMints.toString()}</span>
-                          </div>
-                          <div>
-                            Claimable:{" "}
-                            <span className="font-mono text-[#e8e8de]">
-                              {formatPrice(card.claimableReward, card.rewardAssetSymbol)}
-                            </span>
+                  <MatchPredictionPreview
+                    label={`Match #${card.matchId.toString()} • ${card.matchStatus.toUpperCase()}`}
+                    teamA={teamA}
+                    teamB={teamB}
+                    teamAFlagUri={card.teamAFlagUri}
+                    teamBFlagUri={card.teamBFlagUri}
+                    mintSlots={mintSlots}
+                    rewardAssetSymbol={card.rewardAssetSymbol || "COR"}
+                    footer={
+                      <>
+                        <div className="rounded-2xl border border-[#243225] bg-[#0c120d] px-4 py-3 text-sm text-[#c6c8c2]">
+                          <div className="font-medium text-[#f1f1ea]">{card.title}</div>
+                          <p className="mt-2 leading-6">{card.description}</p>
+                          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-xs">
+                            <div>
+                              Opens: <span className="font-mono text-[#e8e8de]">{formatDate(card.opensAt)}</span>
+                            </div>
+                            <div>
+                              Closes: <span className="font-mono text-[#e8e8de]">{formatDate(card.closesAt)}</span>
+                            </div>
+                            <div>
+                              Total mints: <span className="font-mono text-[#e8e8de]">{card.totalMints.toString()}</span>
+                            </div>
+                            <div>
+                              Claimable:{" "}
+                              <span className="font-mono text-[#e8e8de]">
+                                {formatPrice(card.claimableReward, card.rewardAssetSymbol)}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
 
-                      {card.userMinted ? (
-                        <div className="rounded-2xl border border-[#2a372c] bg-[#0f1711] px-4 py-4 text-sm text-[#b7c2b5]">
-                          Your NFT pick: {card.selectedOption !== null ? card.options[card.selectedOption] : "Pending"}
-                          {card.tokenId ? ` • Token #${card.tokenId.toString()}` : ""}
-                          {card.alreadyClaimed ? " • Reward already claimed" : ""}
-                        </div>
-                      ) : null}
+                        {card.userMinted ? (
+                          <div className="rounded-2xl border border-[#2a372c] bg-[#0f1711] px-4 py-4 text-sm text-[#b7c2b5]">
+                            Your NFT pick: {card.selectedOption !== null ? card.options[card.selectedOption] : "Pending"}
+                            {card.tokenId ? ` • Token #${card.tokenId.toString()}` : ""}
+                            {card.alreadyClaimed ? " • Reward already claimed" : ""}
+                          </div>
+                        ) : null}
 
-                      {canClaim ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleClaimReward(card.matchId)}
-                          disabled={!isMarketplaceConfigured || txBusy}
-                          className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#334032] bg-[#263126] px-4 py-4 text-base font-semibold text-[#edf5ed] transition hover:bg-[#2d3a2d] disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {isCardBusy && isClaiming ? (
-                            <>
-                              <span className="size-4 animate-spin rounded-full border-2 border-[#edf5ed]/25 border-t-[#edf5ed]" />
-                              Claiming...
-                            </>
-                          ) : (
-                            `Claim ${formatPrice(card.claimableReward, card.rewardAssetSymbol)}`
-                          )}
-                        </button>
-                      ) : null}
-                    </>
-                  }
-                />
+                        {canClaim ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleClaimReward(card.matchId)}
+                            disabled={!isSupportedChain || !isMarketplaceConfigured || txBusy}
+                            className="flex w-full items-center justify-center gap-3 rounded-2xl border border-[#334032] bg-[#263126] px-4 py-4 text-base font-semibold text-[#edf5ed] transition hover:bg-[#2d3a2d] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isCardBusy && isClaiming ? (
+                              <>
+                                <span className="size-4 animate-spin rounded-full border-2 border-[#edf5ed]/25 border-t-[#edf5ed]" />
+                                Claiming...
+                              </>
+                            ) : (
+                              `Claim ${formatPrice(card.claimableReward, card.rewardAssetSymbol)}`
+                            )}
+                          </button>
+                        ) : null}
+                      </>
+                    }
+                  />
                 </div>
               );
             })

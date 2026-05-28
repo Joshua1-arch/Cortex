@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { parseEther } from "viem";
 import { getContractsForChain, hasConfiguredAddress } from "@/lib/contracts";
 
-type IntentAction = "MINT_TROPHY" | "CLAIM_FAUCET" | "SWAP_TOKENS" | "UNKNOWN";
+type IntentAction = "MINT_TROPHY" | "CLAIM_FAUCET" | "SWAP_TOKENS" | "MINT_PREDICTION" | "UNKNOWN";
 type IntentGoal =
   | "MINT_TROPHY"
   | "CLAIM_COR"
   | "SWAP_OKB_TO_COR"
   | "SWAP_COR_TO_OKB"
   | "EARN_AND_MINT"
+  | "MINT_MATCH_PREDICTION"
   | "UNKNOWN";
 type PlannerStatus = "success" | "error";
 type PlannerStepKind = "transaction" | "approval" | "guidance";
@@ -30,6 +31,10 @@ type ExecutionParameters = {
   functionName?: string;
   value?: string;
   requiresApproval?: boolean;
+  matchId?: string;
+  matchTitle?: string;
+  selectedOption?: string;
+  selectedOptionIndex?: number;
   approval?: {
     tokenAddress: string;
     spenderAddress: string;
@@ -85,9 +90,9 @@ const ACTION_KEYWORDS = {
   mintTrophy: ["mint", "trophy", "founder trophy", "soulbound"],
   claimFaucet: ["claim faucet", "faucet", "request tokens", "drip"],
   swapTokens: ["swap", "exchange", "convert", "trade"],
+  prediction: ["predict", "prediction", "will win", "winning", "choose", "bet on"],
   goalEarnAndMint: ["earn and mint", "get cor and mint", "faucet then mint", "swap then mint", "complete onboarding"],
 } as const;
-const SUPPORTED_SWAP_TOKENS = ["COR", "OKB", "XL"] as const;
 const COR_PER_OKB = 100_000n;
 const FAUCET_AMOUNT_COR = "1000";
 const TROPHY_MINT_PRICE_OKB = "0.001";
@@ -162,7 +167,7 @@ export function parseIntent(prompt: string, chainId: number): IntentResponse {
       action: "UNKNOWN",
       goal,
       humanReadableSummary:
-        "Could not classify the prompt into a supported Cortex action. Try claiming COR, swapping between OKB and COR, minting a trophy, or asking for a full onboarding flow.",
+        "Could not classify the prompt into a supported Cortex action. Try claiming COR, swapping between OKB and COR, minting a trophy, asking for a full onboarding flow, or using an exact match prediction prompt.",
       planner: {
         goal,
         chainId,
@@ -174,7 +179,7 @@ export function parseIntent(prompt: string, chainId: number): IntentResponse {
             id: "supported-intent",
             label: "Use a supported Cortex action",
             status: "required",
-            description: "Supported actions: faucet claim, OKB/COR swaps, trophy mint, or a combined onboarding goal.",
+            description: "Supported actions: faucet claim, OKB/COR swaps, trophy mint, exact-match prediction planning, or a combined onboarding goal.",
           },
         ],
         steps: [
@@ -184,7 +189,7 @@ export function parseIntent(prompt: string, chainId: number): IntentResponse {
             kind: "guidance",
             status: "advisory",
             description:
-              'Examples: "Claim 1,000 COR", "Swap 0.1 OKB for COR", or "Get COR and mint the founder trophy".',
+              'Examples: "Claim 1,000 COR", "Swap 0.1 OKB for COR", "Get COR and mint the founder trophy", or "Predict Nigeria vs Ghana for Nigeria".',
             action: "UNKNOWN",
           },
         ],
@@ -468,6 +473,118 @@ function buildExecutionPlanner({
     });
   }
 
+  if (goal === "MINT_MATCH_PREDICTION") {
+    const marketplaceConfigured = hasConfiguredAddress(activeContracts.marketplaceAddress);
+    const quoteTokenConfigured = hasConfiguredAddress(activeContracts.quoteTokenAddress);
+    const predictionDetails = extractPredictionPromptDetails(prompt);
+    const predictionReady = marketplaceConfigured && quoteTokenConfigured && Boolean(predictionDetails);
+
+    prerequisites.push({
+      id: "prediction-market-config",
+      label: "Prediction marketplace configured",
+      status: marketplaceConfigured && quoteTokenConfigured ? "satisfied" : "required",
+      description:
+        marketplaceConfigured && quoteTokenConfigured
+          ? "The marketplace and quote token contracts are configured for this chain."
+          : `Missing marketplace or quote token address for ${activeContracts.chainName}. Configure the chain-specific market variables before prediction minting can execute.`,
+    });
+
+    prerequisites.push({
+      id: "prediction-exact-match",
+      label: "Exact match title and option detected",
+      status: predictionDetails ? "satisfied" : "required",
+      description: predictionDetails
+        ? `Prediction parsed: ${predictionDetails.matchTitle} → ${predictionDetails.selectedOption}.`
+        : "Use an exact existing match title and one exact option label. Example: Predict Italy vs Iraq for Italy.",
+    });
+
+    if (!predictionDetails) {
+      steps.push({
+        id: "rewrite-prediction-prompt",
+        title: "Rewrite the prompt with an exact match title and option",
+        kind: "guidance",
+        status: "advisory",
+        description:
+          "Use the exact marketplace match title and the exact option label so the agent can prepare the mint transaction.",
+        ctaLabel: undefined,
+        action: "MINT_PREDICTION",
+      });
+
+      recovery.push({
+        title: "Use exact match phrasing",
+        description: "Example: Predict Italy vs Iraq for Italy.",
+        severity: "info",
+      });
+    } else {
+      const selectedOptionIndex = resolvePredictionOptionIndex(predictionDetails);
+      const matchLookupDescription =
+        selectedOptionIndex === 2
+          ? "The prompt maps to the Draw option."
+          : `The prompt maps to option ${selectedOptionIndex + 1} for ${predictionDetails.selectedOption}.`;
+
+      prerequisites.push({
+        id: "prediction-option-match",
+        label: "Prediction option mapped",
+        status: "satisfied",
+        description: matchLookupDescription,
+      });
+
+      steps.push({
+        id: "approve-prediction-spend",
+        title: `Approve COR for ${predictionDetails.matchTitle}`,
+        kind: "approval",
+        status: predictionReady ? "ready" : "blocked",
+        description: "Authorizes the marketplace contract to transfer the match entry amount before minting the prediction NFT.",
+        ctaLabel: "Approve COR",
+        action: "MINT_PREDICTION",
+        parameters: predictionReady
+          ? {
+              matchTitle: predictionDetails.matchTitle,
+              selectedOption: predictionDetails.selectedOption,
+              selectedOptionIndex,
+              contractAddress: activeContracts.quoteTokenAddress,
+              functionName: "approvePredictionByMatchTitle",
+              approval: {
+                tokenAddress: activeContracts.quoteTokenAddress,
+                spenderAddress: activeContracts.marketplaceAddress,
+                amount: parseEther("100").toString(),
+              },
+            }
+          : undefined,
+        blockers: predictionReady ? [] : ["Prediction marketplace contracts are not configured for this chain."],
+      });
+
+      steps.push({
+        id: "mint-prediction",
+        title: `Mint prediction for ${predictionDetails.matchTitle}`,
+        kind: "transaction",
+        status: predictionReady ? "ready" : "blocked",
+        description: `Mints the prediction NFT for ${predictionDetails.selectedOption}.`,
+        ctaLabel: "Mint Prediction",
+        action: "MINT_PREDICTION",
+        parameters: predictionReady
+          ? {
+              matchTitle: predictionDetails.matchTitle,
+              selectedOption: predictionDetails.selectedOption,
+              selectedOptionIndex,
+              matchId: predictionDetails.matchId,
+              contractAddress: activeContracts.marketplaceAddress,
+              functionName: "mintPrediction",
+              requiresApproval: true,
+            }
+          : undefined,
+        blockers: predictionReady ? [] : ["Prediction marketplace contracts are not configured for this chain."],
+      });
+
+      recovery.push({
+        title: "If prediction minting fails",
+        description:
+          "Confirm the wallet has enough COR for the entry amount and enough OKB for gas. If the marketplace rejects the mint, the current AI flow still needs exact onchain match lookup by title before prediction execution can be fully reliable.",
+        severity: "warning",
+      });
+    }
+  }
+
   if (goal === "EARN_AND_MINT") {
     const faucetConfigured = hasConfiguredAddress(activeContracts.faucetAddress);
     const routerConfigured =
@@ -601,6 +718,10 @@ function inferGoal(prompt: string): IntentGoal {
     return "EARN_AND_MINT";
   }
 
+  if (looksLikePredictionIntent(prompt)) {
+    return "MINT_MATCH_PREDICTION";
+  }
+
   if (looksLikeMintTrophyIntent(prompt)) {
     return "MINT_TROPHY";
   }
@@ -639,6 +760,10 @@ function buildPlannerSummary(goal: IntentGoal, steps: PlannerStep[]) {
     return "The Cortex agent prepared a broader onboarding journey that can chain COR acquisition and founder trophy minting one step at a time.";
   }
 
+  if (goal === "MINT_MATCH_PREDICTION") {
+    return "The Cortex agent prepared a match prediction flow using the detected match title and selected outcome.";
+  }
+
   return "The Cortex agent could not construct a supported plan.";
 }
 
@@ -653,6 +778,10 @@ function mapGoalToPrimaryAction(goal: IntentGoal): IntentAction {
 
   if (goal === "MINT_TROPHY") {
     return "MINT_TROPHY";
+  }
+
+  if (goal === "MINT_MATCH_PREDICTION") {
+    return "MINT_PREDICTION";
   }
 
   return "UNKNOWN";
@@ -676,6 +805,10 @@ function looksLikeEarnAndMintIntent(prompt: string) {
     ((prompt.includes("mint") || prompt.includes("trophy")) &&
       (prompt.includes("claim") || prompt.includes("faucet") || prompt.includes("swap") || prompt.includes("get cor")))
   );
+}
+
+function looksLikePredictionIntent(prompt: string) {
+  return ACTION_KEYWORDS.prediction.some((keyword) => prompt.includes(keyword));
 }
 
 function looksLikeReverseSwapIntent(prompt: string) {
@@ -723,4 +856,53 @@ function formatTokenAmount(value: bigint, maxFractionDigits = 4) {
   return trimmedFraction.length > 0 ? `${whole.toString()}.${trimmedFraction}` : whole.toString();
 }
 
-export { extractAmount, extractDestinationToken, extractToken };
+type PredictionPromptDetails = {
+  matchTitle: string;
+  selectedOption: string;
+  matchId?: string;
+};
+
+function extractPredictionPromptDetails(prompt: string): PredictionPromptDetails | null {
+  const normalizedPrompt = prompt.replace(/\s+/g, " ").trim();
+  const cleanedPrompt = normalizedPrompt.replace(/^i\s+am\s+/i, "").trim();
+  const forPattern = /(?:predict(?:ing)?|prediction(?: for)?|mint prediction for)\s+(.+?)\s+(?:for|choose|pick)\s+(.+?)(?:\s+to\s+win)?$/i;
+  const willWinPattern = /(.+?)\s+(?:will win|winning)\s+against\s+(.+)/i;
+
+  const forMatch = cleanedPrompt.match(forPattern) ?? normalizedPrompt.match(forPattern);
+  if (forMatch) {
+    const matchTitle = forMatch[1]?.trim();
+    const selectedOption = forMatch[2]?.trim();
+
+    if (matchTitle && selectedOption) {
+      return {
+        matchTitle,
+        selectedOption: selectedOption.replace(/\s+to\s+win$/i, "").trim(),
+      };
+    }
+  }
+
+  const willWinMatch = cleanedPrompt.match(willWinPattern) ?? normalizedPrompt.match(willWinPattern);
+  if (willWinMatch) {
+    const selectedOption = willWinMatch[1]?.trim();
+    const opponent = willWinMatch[2]?.trim();
+
+    if (selectedOption && opponent) {
+      return {
+        matchTitle: `${selectedOption} vs ${opponent}`,
+        selectedOption,
+      };
+    }
+  }
+
+  return null;
+}
+
+function resolvePredictionOptionIndex(predictionDetails: PredictionPromptDetails) {
+  if (predictionDetails.selectedOption.trim().toLowerCase() === "draw") {
+    return 2;
+  }
+
+  return 0;
+}
+
+export { extractAmount, extractDestinationToken, extractPredictionPromptDetails, extractToken };

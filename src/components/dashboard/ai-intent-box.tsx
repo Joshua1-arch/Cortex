@@ -11,13 +11,14 @@ import {
 } from "wagmi";
 import { Button } from "@/components/ui/button";
 
-type IntentAction = "MINT_TROPHY" | "CLAIM_FAUCET" | "SWAP_TOKENS" | "UNKNOWN";
+type IntentAction = "MINT_TROPHY" | "CLAIM_FAUCET" | "SWAP_TOKENS" | "MINT_PREDICTION" | "UNKNOWN";
 type IntentGoal =
   | "MINT_TROPHY"
   | "CLAIM_COR"
   | "SWAP_OKB_TO_COR"
   | "SWAP_COR_TO_OKB"
   | "EARN_AND_MINT"
+  | "MINT_MATCH_PREDICTION"
   | "UNKNOWN";
 type PlannerStepKind = "transaction" | "approval" | "guidance";
 type PlannerStepStatus = "ready" | "blocked" | "advisory";
@@ -33,6 +34,10 @@ type ExecutionParameters = {
   functionName?: string;
   value?: string;
   requiresApproval?: boolean;
+  matchId?: string;
+  matchTitle?: string;
+  selectedOption?: string;
+  selectedOptionIndex?: number;
   approval?: {
     tokenAddress: Hex;
     spenderAddress: Hex;
@@ -84,6 +89,7 @@ type IntentResponse = {
 };
 
 type ExecutedStepState = Record<string, { hash: Hex; label: string }>;
+type CompletedActionState = Partial<Record<IntentAction | "APPROVAL", boolean>>;
 
 type AgentMessageTone = "success" | "error" | "idle";
 
@@ -99,6 +105,7 @@ const SAMPLE_PROMPTS = [
   "Swap 0.1 OKB for COR",
   "Swap 10000 COR to OKB",
   "Get COR and mint the founder trophy",
+  "Predict Nigeria vs Ghana for Nigeria",
 ];
 
 function getReceiptErrorMessage(error: unknown) {
@@ -125,6 +132,8 @@ function formatGoalLabel(goal: IntentGoal) {
       return "Mint Trophy";
     case "EARN_AND_MINT":
       return "Earn + Mint Journey";
+    case "MINT_MATCH_PREDICTION":
+      return "Mint Match Prediction";
     default:
       return "Unsupported Goal";
   }
@@ -187,7 +196,10 @@ export function AIIntentBox() {
   const [submittedHash, setSubmittedHash] = useState<Hex | undefined>();
   const [executedSteps, setExecutedSteps] = useState<ExecutedStepState>({});
   const [executingStepId, setExecutingStepId] = useState<string | null>(null);
+  const [completedActions, setCompletedActions] = useState<CompletedActionState>({});
+  const [isStepConfirming, setIsStepConfirming] = useState(false);
   const [plannerResult, setPlannerResult] = useState<IntentResponse["planner"] | null>(null);
+  const [debugState, setDebugState] = useState<string | null>(null);
   const { chainId } = useAccount();
   const publicClient = usePublicClient();
   const { writeContractAsync } = useWriteContract();
@@ -201,7 +213,7 @@ export function AIIntentBox() {
     hash: submittedHash,
   });
 
-  const isDisabled = isProcessing || prompt.trim().length === 0 || isExecutingIntent;
+  const isDisabled = isProcessing || prompt.trim().length === 0 || isExecutingIntent || isStepConfirming;
   const activeChainId = chainId ?? 1952;
 
   const derivedAgentFeedback = useMemo(() => {
@@ -209,7 +221,7 @@ export function AIIntentBox() {
       return null;
     }
 
-    if (isReceiptPending) {
+    if (isReceiptPending && isStepConfirming) {
       return {
         message: "Waiting for blockchain confirmation...",
         tone: "idle" as const,
@@ -266,6 +278,9 @@ export function AIIntentBox() {
     setPlannerResult(null);
     setExecutedSteps({});
     setExecutingStepId(null);
+    setCompletedActions({});
+    setIsStepConfirming(false);
+    setDebugState(null);
 
     try {
       const response = await fetch("/api/agent", {
@@ -310,7 +325,9 @@ export function AIIntentBox() {
     setSubmittedHash(undefined);
     setAgentMessageTone("idle");
     setIsExecutingIntent(true);
+    setIsStepConfirming(false);
     setExecutingStepId(step.id);
+    setDebugState(`Starting step ${step.id} on chain ${chainId}.`);
 
     try {
       let transactionHash: Hex | undefined;
@@ -378,14 +395,28 @@ export function AIIntentBox() {
         }));
         setAgentMessage(`${step.title} submitted. Waiting for blockchain confirmation...`);
         setAgentMessageTone("idle");
+        setIsStepConfirming(true);
+        setDebugState(
+          `Submitted ${step.id} with hash ${transactionHash}. Waiting for receipt via public client on chain ${chainId}.`,
+        );
         await publicClient?.waitForTransactionReceipt({ hash: transactionHash });
+        setCompletedActions((current) => ({
+          ...current,
+          [step.kind === "approval" ? "APPROVAL" : step.action]: true,
+        }));
+        setAgentMessage(`${step.title} confirmed successfully.`);
+        setAgentMessageTone("success");
+        setDebugState(`Receipt confirmed for ${step.id} with hash ${transactionHash}. Approval gate released.`);
+        setIsStepConfirming(false);
       }
     } catch (error) {
       setAgentMessage(`Transaction failed: ${getReceiptErrorMessage(error)}`);
       setAgentMessageTone("error");
+      setDebugState(`Step ${step.id} failed while awaiting receipt: ${getReceiptErrorMessage(error)}`);
     } finally {
       setIsExecutingIntent(false);
       setExecutingStepId(null);
+      setIsStepConfirming(false);
     }
   }
 
@@ -418,7 +449,7 @@ export function AIIntentBox() {
           rows={5}
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="Get COR and mint the founder trophy"
+          placeholder="Get COR and mint the founder trophy, or predict an exact match like Nigeria vs Ghana for Nigeria"
           className="min-h-[120px] w-full resize-none rounded-[24px] border border-[#1f2720] bg-[#070909] px-5 py-5 font-mono text-base leading-7 text-[#dce6d8] outline-none placeholder:text-[#4a5148] sm:text-lg"
         />
 
@@ -485,6 +516,14 @@ export function AIIntentBox() {
                       const isExecutingThisStep = executingStepId === step.id;
                       const isExecuted = Boolean(executedSteps[step.id]);
                       const hasBlockers = Boolean(step.blockers && step.blockers.length > 0);
+                      const requiresCompletedApproval =
+                        step.kind === "transaction"
+                        && step.parameters?.requiresApproval
+                        && !completedActions.APPROVAL;
+                      const hasUnmetSequenceRequirement =
+                        step.kind === "transaction"
+                        && step.parameters?.requiresApproval
+                        && !completedActions.APPROVAL;
                       const isActionable =
                         step.status === "ready"
                         && !hasBlockers
@@ -520,6 +559,14 @@ export function AIIntentBox() {
                                 </div>
                               ) : null}
 
+                              {step.parameters?.matchTitle || step.parameters?.selectedOption ? (
+                                <div className="mt-3 rounded-2xl border border-[#202a22] bg-[#0a0f0b] px-3 py-3 text-xs text-[#90a08d]">
+                                  {step.parameters.matchTitle ? <div>Match: {step.parameters.matchTitle}</div> : null}
+                                  {step.parameters.selectedOption ? <div className="mt-1">Selection: {step.parameters.selectedOption}</div> : null}
+                                  {step.parameters.matchId ? <div className="mt-1">Match ID: {step.parameters.matchId}</div> : null}
+                                </div>
+                              ) : null}
+
                               {step.blockers && step.blockers.length > 0 ? (
                                 <div className="mt-3 rounded-2xl border border-[#3a2222] bg-[#170f0f] px-3 py-3 text-sm text-[#f0b2b2]">
                                   <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#ffb4b4]">
@@ -533,6 +580,12 @@ export function AIIntentBox() {
                                 </div>
                               ) : null}
 
+                              {hasUnmetSequenceRequirement ? (
+                                <div className="mt-3 rounded-2xl border border-[#5d5322] bg-[#1f1b0c] px-3 py-3 text-sm text-[#f4e39d]">
+                                  Complete the approval step successfully before minting.
+                                </div>
+                              ) : null}
+
                               {isExecuted ? (
                                 <div className="mt-3 rounded-2xl border border-[#22442a] bg-[#0f1812] px-3 py-3 text-sm text-[#9fe3b0]">
                                   Submitted: {executedSteps[step.id]?.label}
@@ -543,13 +596,13 @@ export function AIIntentBox() {
                             {isActionable ? (
                               <Button
                                 type="button"
-                                disabled={isExecutingIntent || isReceiptPending || hasBlockers}
-                                isLoading={isExecutingThisStep || (isReceiptPending && Boolean(submittedHash))}
+                                disabled={isExecutingIntent || isStepConfirming || hasBlockers || hasUnmetSequenceRequirement}
+                                isLoading={isExecutingThisStep || (isStepConfirming && Boolean(submittedHash))}
                                 loadingText={isExecutingThisStep ? "Opening wallet..." : "Confirming..."}
                                 onClick={() => void executeStep(step)}
                                 className="w-full px-4 py-3 text-sm sm:w-auto"
                               >
-                                {step.ctaLabel ?? "Execute Step"}
+                                {hasUnmetSequenceRequirement ? "Complete approval first" : step.ctaLabel ?? "Execute Step"}
                               </Button>
                             ) : step.kind === "guidance" ? (
                               <span className="inline-flex items-center gap-2 rounded-full border border-[#2a342b] bg-[#131916] px-3 py-2 text-xs text-[#afbaac]">
@@ -626,7 +679,14 @@ export function AIIntentBox() {
             {displayedAgentMessage}
           </div>
         ) : null}
+
+        {debugState ? (
+          <div className="mt-4 rounded-2xl border border-[#2a342b] bg-[#0c120d] px-4 py-3 font-mono text-xs text-[#9fb39f]">
+            {debugState}
+          </div>
+        ) : null}
       </form>
     </section>
   );
 }
+

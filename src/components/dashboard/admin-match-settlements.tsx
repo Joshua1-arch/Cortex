@@ -93,10 +93,11 @@ type MatchTuple = {
   description: string;
   imageUri: string;
   rewardAssetSymbol: string;
-  options: string[];
+  options: readonly string[];
 };
 
 type MatchRecord = Omit<MatchTuple, "state" | "exists"> & {
+  options: string[];
   state: MatchState;
 };
 
@@ -238,13 +239,16 @@ export function AdminMatchSettlements() {
     () =>
       isMarketplaceConfigured
         ? matchIds.map((matchId) => ({
-            address: marketplaceAddress,
+            address: marketplaceAddress!,
             abi: marketplaceAbi,
             functionName: "getMatch" as const,
             args: [matchId] as const,
           }))
         : [],
-    [isMarketplaceConfigured, matchIds, marketplaceAddress],
+    // `marketplaceAddress` is already gated by `isMarketplaceConfigured`; including it
+    // trips react-compiler preservation on this stable contract descriptor list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isMarketplaceConfigured, matchIds],
   );
 
   const { data: matchResults, isLoading: isMatchesLoading, isFetching: isMatchesFetching } = useReadContracts({
@@ -252,26 +256,39 @@ export function AdminMatchSettlements() {
     query: { enabled: matchContracts.length > 0 },
   });
 
-  const matches = useMemo(() => {
-    return (matchResults ?? [])
-      .map((result) => {
-        if (result.status !== "success" || !result.result) {
-          return null;
-        }
+  const matches = useMemo<MatchRecord[]>(() => {
+    const mappedMatches: MatchRecord[] = [];
 
-        const match = result.result as MatchTuple;
-        if (!match.exists) {
-          return null;
-        }
+    for (const result of matchResults ?? []) {
+      if (result.status !== "success" || !result.result) {
+        continue;
+      }
 
-        const { exists: _exists, state, ...rest } = match;
+      const match = result.result as unknown as MatchTuple;
+      if (!match.exists) {
+        continue;
+      }
 
-        return {
-          ...rest,
-          state: mapMatchState(state),
-        } satisfies MatchRecord;
-      })
-      .filter((match): match is MatchRecord => match !== null);
+      mappedMatches.push({
+        id: match.id,
+        entryPrice: match.entryPrice,
+        rewardAmount: match.rewardAmount,
+        opensAt: match.opensAt,
+        closesAt: match.closesAt,
+        totalMints: match.totalMints,
+        winningMints: match.winningMints,
+        winningOption: match.winningOption,
+        slug: match.slug,
+        title: match.title,
+        description: match.description,
+        imageUri: match.imageUri,
+        rewardAssetSymbol: match.rewardAssetSymbol,
+        options: [...match.options],
+        state: mapMatchState(match.state),
+      });
+    }
+
+    return mappedMatches;
   }, [matchResults]);
 
   const filteredMatches = useMemo(() => {
